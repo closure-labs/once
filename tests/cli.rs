@@ -17,6 +17,9 @@ fn fixture() -> (TempDir, std::path::PathBuf, std::path::PathBuf) {
         "#!{shell}\n{}",
         r##"set -eu
 args="$*"
+if [ -n "${FAKE_NIX_LOG:-}" ]; then
+  printf '%s\n' "$args" >> "$FAKE_NIX_LOG"
+fi
 case "$args" in
   "--version")
     echo 'nix (Nix) 2.35.2'
@@ -52,11 +55,35 @@ POLICY
     echo '{"/nix/store/unresolved-check.drv":{}}'
     ;;
   *"build-trace info"*)
-    if [ "${FAKE_NIX_MISS:-}" = 1 ]; then
-      echo "error: cannot operate on output 'out' of the unbuilt derivation" >&2
-      exit 1
-    fi
-    echo '[{"key":{"drvPath":"resolved-check.drv","outputName":"out"},"value":{"outPath":"result-check","signatures":[{"keyName":"ci.closurelabs.dev-1","sig":"AA=="}]}},{"opaquePath":"/nix/store/result-check"}]'
+    mode="${FAKE_NIX_TRACE_MODE:-found}"
+    signer="${FAKE_NIX_SIGNER:-ci.closurelabs.dev-1}"
+    case "$mode" in
+      found)
+        echo "[{\"key\":{\"drvPath\":\"resolved-check.drv\",\"outputName\":\"out\"},\"value\":{\"outPath\":\"result-check\",\"signatures\":[{\"keyName\":\"$signer\",\"sig\":\"AA==\"}]}},{\"opaquePath\":\"/nix/store/result-check\"}]"
+        ;;
+      miss)
+        echo "error: cannot operate on output 'out' of the unbuilt derivation" >&2
+        exit 1
+        ;;
+      untrusted)
+        echo 'error: build trace signature is invalid' >&2
+        exit 1
+        ;;
+      conflict)
+        echo '[{"key":{"drvPath":"resolved-check.drv","outputName":"out"},"value":{"outPath":"result-a","signatures":[{"keyName":"ci.closurelabs.dev-1","sig":"AA=="}]}},{"key":{"drvPath":"resolved-check.drv","outputName":"out"},"value":{"outPath":"result-b","signatures":[{"keyName":"ci.closurelabs.dev-1","sig":"AA=="}]}}]'
+        ;;
+      malformed)
+        echo '{"not":"a trace array"}'
+        ;;
+      error)
+        echo 'error: unexpected upstream failure' >&2
+        exit 1
+        ;;
+      *)
+        echo "unknown fake trace mode: $mode" >&2
+        exit 2
+        ;;
+    esac
     ;;
   *"build"*)
     echo '[]'
@@ -129,7 +156,7 @@ fn cold_check_uses_miss_exit_code() {
     let (_directory, nix, config) = fixture();
     let output = Command::new(env!("CARGO_BIN_EXE_once"))
         .env("ONCE_NIX_BIN", nix)
-        .env("FAKE_NIX_MISS", "1")
+        .env("FAKE_NIX_TRACE_MODE", "miss")
         .args(["--config", config.to_str().expect("UTF-8 path")])
         .args(["--json", "check", ".#demo"])
         .output()
@@ -139,6 +166,129 @@ fn cold_check_uses_miss_exit_code() {
         serde_json::from_slice(&output.stdout).expect("JSON result envelope");
     assert_eq!(json["decision"], "MISS");
     assert_eq!(json["action"], "BUILD");
+}
+
+fn assert_json_fixture(output: &Output, name: &str) {
+    assert!(
+        output.status.success(),
+        "{name}: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let actual: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("actual JSON output");
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/json")
+        .join(format!("{name}.json"));
+    let expected: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(path).expect("golden JSON fixture"))
+            .expect("valid golden JSON");
+    assert_eq!(actual, expected, "{name} JSON compatibility changed");
+}
+
+#[test]
+fn json_outputs_match_compatibility_fixtures() {
+    let (_directory, nix, config) = fixture();
+    assert_json_fixture(&once(&nix, &config, &["--json", "doctor"]), "doctor");
+    for command in ["check", "resolve", "trace", "trust", "explain"] {
+        let output = once(&nix, &config, &["--json", command, ".#demo"]);
+        assert_json_fixture(&output, command);
+    }
+}
+
+#[test]
+fn read_only_commands_never_request_a_target_build_or_download() {
+    let (directory, nix, config) = fixture();
+    let log = directory.path().join("nix-invocations.log");
+    for mode in ["found", "miss"] {
+        for command in ["check", "resolve", "trace", "trust", "explain"] {
+            let output = Command::new(env!("CARGO_BIN_EXE_once"))
+                .env("ONCE_NIX_BIN", &nix)
+                .env("FAKE_NIX_LOG", &log)
+                .env("FAKE_NIX_TRACE_MODE", mode)
+                .args(["--config", config.to_str().expect("UTF-8 path")])
+                .args(["--json", command, ".#must-not-build"])
+                .output()
+                .expect("run read-only command");
+            let expected = if mode == "found" { 0 } else { 10 };
+            assert_eq!(output.status.code(), Some(expected), "{command}/{mode}");
+        }
+    }
+    let calls = fs::read_to_string(log).expect("Nix invocation log");
+    for forbidden in [" build ", " copy ", " path-info ", " substitute "] {
+        assert!(
+            !calls.lines().any(|line| line.contains(forbidden)),
+            "read-only command invoked `{forbidden}`:\n{calls}"
+        );
+    }
+}
+
+#[test]
+fn every_diagnostic_fails_closed_for_ambiguous_trace_states() {
+    let (_directory, nix, config) = fixture();
+    let cases = [
+        ("miss", None, 10, "MISS"),
+        ("untrusted", None, 11, "UNTRUSTED"),
+        ("conflict", None, 12, "CONFLICT"),
+        ("error", None, 40, "ERROR"),
+        ("found", Some("unaccepted.example-1"), 11, "UNTRUSTED"),
+    ];
+    for command in ["check", "resolve", "trace", "trust", "explain"] {
+        for (mode, signer, exit_code, decision) in cases {
+            let mut invocation = Command::new(env!("CARGO_BIN_EXE_once"));
+            invocation
+                .env("ONCE_NIX_BIN", &nix)
+                .env("FAKE_NIX_TRACE_MODE", mode)
+                .args(["--config", config.to_str().expect("UTF-8 path")])
+                .args(["--json", command, ".#ambiguous"]);
+            if let Some(signer) = signer {
+                invocation.env("FAKE_NIX_SIGNER", signer);
+            }
+            let output = invocation.output().expect("run ambiguous diagnostic");
+            assert_eq!(
+                output.status.code(),
+                Some(exit_code),
+                "{command}/{mode}/{signer:?}"
+            );
+            let json: serde_json::Value =
+                serde_json::from_slice(&output.stdout).expect("fail-closed JSON");
+            assert_eq!(json["decision"], decision, "{command}/{mode}/{signer:?}");
+        }
+    }
+}
+
+#[test]
+fn malformed_trace_and_unverified_remote_fail_closed() {
+    let (_directory, nix, config) = fixture();
+    for command in ["check", "resolve", "trace", "trust", "explain"] {
+        let malformed = Command::new(env!("CARGO_BIN_EXE_once"))
+            .env("ONCE_NIX_BIN", &nix)
+            .env("FAKE_NIX_TRACE_MODE", "malformed")
+            .args(["--config", config.to_str().expect("UTF-8 path")])
+            .args(["--json", command, ".#malformed"])
+            .output()
+            .expect("run malformed diagnostic");
+        assert_eq!(malformed.status.code(), Some(40), "{command}/malformed");
+        assert!(malformed.stdout.is_empty(), "{command}/malformed");
+        assert!(
+            String::from_utf8_lossy(&malformed.stderr).contains("could not parse JSON"),
+            "{command}/malformed"
+        );
+
+        let remote = Command::new(env!("CARGO_BIN_EXE_once"))
+            .env("ONCE_NIX_BIN", &nix)
+            .env("ONCE_NIX_STORE", "https://cache.example.invalid")
+            .args(["--config", config.to_str().expect("UTF-8 path")])
+            .args(["--json", command, ".#remote"])
+            .output()
+            .expect("run remote diagnostic");
+        assert_eq!(remote.status.code(), Some(20), "{command}/remote");
+        let json: serde_json::Value = serde_json::from_slice(&remote.stdout).expect("remote JSON");
+        assert_eq!(json["decision"], "UNSUPPORTED", "{command}/remote");
+        if command == "trace" {
+            assert_eq!(json["status"], "found");
+            assert_eq!(json["evidence"], "unverified-remote");
+        }
+    }
 }
 
 #[test]

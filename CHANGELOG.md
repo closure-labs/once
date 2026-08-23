@@ -16,6 +16,8 @@ All notable changes to Once are documented in this file. The project follows
   versioned JSON output, exact policy exit codes, and fail-closed defaults.
 - Give `resolve`, `trace`, and `trust` distinct versioned diagnostic views and
   expand human-readable `explain` output while preserving policy exit codes.
+- Lock every public v1 JSON shape with golden fixtures and cover fail-closed,
+  no-target-build diagnostic behavior across ambiguous trace states.
 
 ### Fixed
 
