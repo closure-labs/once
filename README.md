@@ -95,8 +95,8 @@ once CLI
 
 See [architecture](docs/architecture.md), [threat model](docs/threat-model.md),
 [POC demo](docs/poc-demo.md), [protected policy](docs/protected-policy.md),
-[GitHub Action](docs/github-action.md), [governance](docs/governance.md), and the
-[changelog](CHANGELOG.md) for details.
+[diagnostic commands](docs/diagnostic-commands.md), [GitHub Action](docs/github-action.md),
+[governance](docs/governance.md), and the [changelog](CHANGELOG.md) for details.
 
 ## Status and roadmap
 

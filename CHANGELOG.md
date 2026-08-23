@@ -14,6 +14,8 @@ All notable changes to Once are documented in this file. The project follows
   protected update and invocation boundaries.
 - Package `doctor`, `check`, and `run` as a pinned composite GitHub Action with
   versioned JSON output, exact policy exit codes, and fail-closed defaults.
+- Give `resolve`, `trace`, and `trust` distinct versioned diagnostic views and
+  expand human-readable `explain` output while preserving policy exit codes.
 
 ### Fixed
 
