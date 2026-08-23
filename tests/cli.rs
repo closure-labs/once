@@ -151,6 +151,69 @@ fn doctor_reports_suitable_fake_nix() {
 }
 
 #[test]
+fn diagnostic_commands_have_distinct_json_views() {
+    let (_directory, nix, config) = fixture();
+    let cases = [
+        ("resolve", "dev.closurelabs.once/resolve/v1"),
+        ("trace", "dev.closurelabs.once/trace/v1"),
+        ("trust", "dev.closurelabs.once/trust/v1"),
+        ("explain", "dev.closurelabs.once/result/v1"),
+    ];
+
+    for (command, schema) in cases {
+        let output = once(&nix, &config, &["--json", command, ".#demo"]);
+        assert!(
+            output.status.success(),
+            "{command}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let json: serde_json::Value =
+            serde_json::from_slice(&output.stdout).expect("diagnostic JSON");
+        assert_eq!(json["schema"], schema, "{command}");
+        assert_eq!(json["decision"], "ACCEPTED_WITH_IA_TRUST", "{command}");
+        match command {
+            "resolve" => {
+                assert_eq!(json["status"], "resolved");
+                assert_eq!(json["outputName"], "out");
+                assert!(json.get("trace").is_none());
+            }
+            "trace" => {
+                assert_eq!(json["evidence"], "local-store");
+                assert_eq!(json["entries"][0]["signatureCount"], 1);
+                assert_eq!(
+                    json["entries"][0]["signerKeyNames"][0],
+                    "ci.closurelabs.dev-1"
+                );
+            }
+            "trust" => {
+                assert_eq!(json["requiredSignatures"], 1);
+                assert_eq!(json["acceptedSignatureCount"], 1);
+                assert_eq!(json["maySkip"], true);
+            }
+            "explain" => {
+                assert_eq!(json["trace"]["status"], "found");
+                assert!(json.get("derivation").is_some());
+            }
+            _ => unreachable!(),
+        }
+    }
+}
+
+#[test]
+fn diagnostic_commands_have_distinct_human_headings() {
+    let (_directory, nix, config) = fixture();
+    for command in ["resolve", "trace", "trust", "explain"] {
+        let output = once(&nix, &config, &[command, ".#demo"]);
+        assert!(output.status.success(), "{command}");
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(
+            stdout.starts_with(&format!("Closure Labs — Once {command}")),
+            "{command}: {stdout}"
+        );
+    }
+}
+
+#[test]
 fn check_loads_policy_from_verified_immutable_flake() {
     const REVISION: &str = "0123456789abcdef0123456789abcdef01234567";
     let (_directory, nix, _config) = fixture();

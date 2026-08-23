@@ -6,7 +6,8 @@ use crate::{
     config::Config,
     error::Result,
     nix::NixAdapter,
-    policy, report,
+    policy,
+    report::{self, InspectionView},
     types::{Action, Decision, ExitCode},
 };
 
@@ -82,15 +83,39 @@ pub fn execute(cli: Cli) -> Result<i32> {
             })
         }
         Commands::Run { installable } => run(&nix, &config, &installable, cli.json),
-        Commands::Check { installable }
-        | Commands::Resolve { installable }
-        | Commands::Trace { installable }
-        | Commands::Trust { installable }
-        | Commands::Explain { installable } => inspect(&nix, &config, &installable, cli.json),
+        Commands::Check { installable } => {
+            inspect(&nix, &config, &installable, InspectionView::Check, cli.json)
+        }
+        Commands::Resolve { installable } => inspect(
+            &nix,
+            &config,
+            &installable,
+            InspectionView::Resolve,
+            cli.json,
+        ),
+        Commands::Trace { installable } => {
+            inspect(&nix, &config, &installable, InspectionView::Trace, cli.json)
+        }
+        Commands::Trust { installable } => {
+            inspect(&nix, &config, &installable, InspectionView::Trust, cli.json)
+        }
+        Commands::Explain { installable } => inspect(
+            &nix,
+            &config,
+            &installable,
+            InspectionView::Explain,
+            cli.json,
+        ),
     }
 }
 
-fn inspect(nix: &NixAdapter, config: &Config, installable: &str, json: bool) -> Result<i32> {
+fn inspect(
+    nix: &NixAdapter,
+    config: &Config,
+    installable: &str,
+    view: InspectionView,
+    json: bool,
+) -> Result<i32> {
     let version = nix.version()?;
     if version < config.nix.minimum_version {
         let evaluation = Default::default();
@@ -103,11 +128,11 @@ fn inspect(nix: &NixAdapter, config: &Config, installable: &str, json: bool) -> 
             installable,
             Some(version.to_string()),
             evaluation,
-            query,
+            query.clone(),
         );
         result.report.decision = Decision::Unsupported;
         result.exit_code = ExitCode::Unsupported;
-        report::result(&result.report, json)?;
+        report::inspection(&result.report, &query, config, view, json)?;
         return Ok(result.exit_code as i32);
     }
 
@@ -118,9 +143,9 @@ fn inspect(nix: &NixAdapter, config: &Config, installable: &str, json: bool) -> 
         installable,
         Some(version.to_string()),
         evaluation,
-        query,
+        query.clone(),
     );
-    report::result(&result.report, json)?;
+    report::inspection(&result.report, &query, config, view, json)?;
     report::github_summary(&result.report, config.reporting.github_summary)?;
     Ok(result.exit_code as i32)
 }
