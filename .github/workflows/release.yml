@@ -43,7 +43,9 @@ jobs:
           cp -L result/bin/once "dist/$archive/bin/once"
           cp COPYRIGHT LICENSE README.md "dist/$archive/"
           tar -C dist -czf "dist/$archive.tar.gz" "$archive"
-          sha256sum "dist/$archive.tar.gz" > "dist/$archive.tar.gz.sha256"
+          pushd dist > /dev/null
+          sha256sum "$archive.tar.gz" > "$archive.tar.gz.sha256"
+          popd > /dev/null
 
       - name: Upload GitHub release assets
         env:

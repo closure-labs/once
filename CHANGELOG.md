@@ -3,6 +3,13 @@
 All notable changes to Once are documented in this file. The project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Generate release checksum files with portable archive basenames so
+  `sha256sum -c` works after downloading the assets into any directory.
+
 ## [0.1.1] - 2026-08-23
 
 ### Changed
@@ -42,3 +49,4 @@ All notable changes to Once are documented in this file. The project follows
 
 [0.1.0]: https://github.com/closure-labs/once/releases/tag/v0.1.0
 [0.1.1]: https://github.com/closure-labs/once/compare/v0.1.0...v0.1.1
+[Unreleased]: https://github.com/closure-labs/once/compare/v0.1.1...HEAD
