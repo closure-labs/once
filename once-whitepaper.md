@@ -1132,7 +1132,7 @@ When ambiguity exists:
 Add to README as future work:
 
 - a separate protected Closure Labs "Once policy" flake/repository so candidate PR code cannot redefine what constitutes a passing Once check (implemented for v0.2);
-- reusable GitHub Action;
+- reusable GitHub Action (implemented for v0.2);
 - Cachix adapter when native `build-trace-v2` behavior is verified;
 - S3 backend using GitHub OIDC;
 - Harmonia integration;

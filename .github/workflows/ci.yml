@@ -39,8 +39,14 @@ jobs:
           nix develop -c actionlint
           nix develop -c actionlint examples/once-policy/.github/workflows/ci.yml
 
+      - name: Lint GitHub Action wrapper
+        run: nix develop -c shellcheck scripts/github-action.sh tests/github-action.sh
+
       - name: Test
         run: nix develop -c cargo test
+
+      - name: Test GitHub Action wrapper
+        run: nix develop -c bash tests/github-action.sh
 
       - name: Verify protected policy bootstrap
         env:
@@ -50,6 +56,23 @@ jobs:
             --policy-flake "github:closure-labs/once-policy/$ONCE_POLICY_REVISION" \
             --policy-revision "$ONCE_POLICY_REVISION" \
             --json doctor
+
+      - name: Exercise reusable GitHub Action
+        id: reusable-once
+        uses: ./
+        with:
+          command: doctor
+          policy-flake: github:closure-labs/once-policy/5a4234004dc9948a1d45d462f947b10411d91a33
+          policy-revision: 5a4234004dc9948a1d45d462f947b10411d91a33
+          install-nix: "false"
+
+      - name: Verify reusable Action outputs
+        env:
+          ONCE_ACTION_EXIT_CODE: ${{ steps.reusable-once.outputs.exit-code }}
+          ONCE_ACTION_SCHEMA: ${{ steps.reusable-once.outputs.schema }}
+        run: |
+          test "$ONCE_ACTION_EXIT_CODE" = 0
+          test "$ONCE_ACTION_SCHEMA" = dev.closurelabs.once/doctor/v1
 
       - name: Check flake
         run: nix flake check --print-build-logs

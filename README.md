@@ -95,14 +95,15 @@ once CLI
 
 See [architecture](docs/architecture.md), [threat model](docs/threat-model.md),
 [POC demo](docs/poc-demo.md), [protected policy](docs/protected-policy.md),
-[governance](docs/governance.md), and the [changelog](CHANGELOG.md) for details.
+[GitHub Action](docs/github-action.md), [governance](docs/governance.md), and the
+[changelog](CHANGELOG.md) for details.
 
 ## Status and roadmap
 
-This is a proof of concept. The protected policy flake is available in v0.2;
-future work includes a reusable GitHub Action, durable HTTP/S3/Harmonia backends, stricter
-input-addressed dependency policy, multi-signature thresholds, and additional
-platforms.
+This is a proof of concept. The protected policy flake and reusable GitHub
+Action are available in v0.2. Future work includes durable HTTP/S3/Harmonia
+backends, stricter input-addressed dependency policy, multi-signature
+thresholds, and additional platforms.
 
 Copyright (C) 2026 Closure Labs and Dale Morgan. Licensed under
 [Apache-2.0](LICENSE).

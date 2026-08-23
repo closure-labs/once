@@ -1,0 +1,70 @@
+name: Closure Labs Once
+description: Apply an immutable Once policy to doctor, check, or run a Nix installable.
+
+inputs:
+  command:
+    description: Once command to execute (doctor, check, or run).
+    required: false
+    default: check
+  installable:
+    description: Nix installable for check or run; omit for doctor.
+    required: false
+  policy-flake:
+    description: Immutable github:OWNER/REPO/COMMIT policy flake reference.
+    required: true
+  policy-revision:
+    description: Full 40-character commit expected from policy flake metadata.
+    required: true
+  fail-on-nonzero:
+    description: Fail the action when Once returns a nonzero policy exit code.
+    required: false
+    default: "true"
+  install-nix:
+    description: Install pinned Determinate Nix before invoking Once.
+    required: false
+    default: "true"
+
+outputs:
+  result-json:
+    description: Versioned JSON emitted by Once, when the CLI produced a result.
+    value: ${{ steps.once.outputs.result-json }}
+  schema:
+    description: Expected schema URI for result-json.
+    value: ${{ steps.once.outputs.schema }}
+  exit-code:
+    description: Exact Once policy exit code.
+    value: ${{ steps.once.outputs.exit-code }}
+
+runs:
+  using: composite
+  steps:
+    - name: Install Determinate Nix
+      if: inputs.install-nix == 'true'
+      uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
+      with:
+        extra-conf: |
+          experimental-features = nix-command flakes ca-derivations
+
+    - name: Run Once
+      id: once
+      shell: bash
+      env:
+        ONCE_ACTION_COMMAND: ${{ inputs.command }}
+        ONCE_ACTION_INSTALLABLE: ${{ inputs.installable }}
+        ONCE_ACTION_POLICY_FLAKE: ${{ inputs.policy-flake }}
+        ONCE_ACTION_POLICY_REVISION: ${{ inputs.policy-revision }}
+        ONCE_ACTION_FAIL_ON_NONZERO: ${{ inputs.fail-on-nonzero }}
+        ONCE_ACTION_INSTALL_NIX: ${{ inputs.install-nix }}
+      run: bash "$GITHUB_ACTION_PATH/scripts/github-action.sh"
+
+    - name: Enforce Once result
+      if: inputs.fail-on-nonzero == 'true' && steps.once.outputs.exit-code != '0'
+      shell: bash
+      env:
+        ONCE_ACTION_EXIT_CODE: ${{ steps.once.outputs.exit-code }}
+      run: |
+        if [[ "$ONCE_ACTION_EXIT_CODE" =~ ^[0-9]+$ ]]; then
+          exit "$ONCE_ACTION_EXIT_CODE"
+        fi
+        echo "Once did not produce a valid exit code" >&2
+        exit 40
