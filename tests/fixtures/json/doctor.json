@@ -1,0 +1,13 @@
+{
+  "schema": "dev.closurelabs.once/doctor/v1",
+  "nixVersion": "2.35.2",
+  "minimumVersion": "2.35.0",
+  "buildTraceCommand": true,
+  "caDerivationsConfigured": true,
+  "requiredFeatures": ["nix-command", "flakes", "ca-derivations"],
+  "backend": {
+    "kind": "nix-environment",
+    "store": null
+  },
+  "suitable": true
+}

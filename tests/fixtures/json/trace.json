@@ -1,0 +1,21 @@
+{
+  "schema": "dev.closurelabs.once/trace/v1",
+  "installable": ".#demo",
+  "decision": "ACCEPTED_WITH_IA_TRUST",
+  "action": "SKIP",
+  "status": "found",
+  "evidence": "local-store",
+  "entries": [
+    {
+      "drvPath": "/nix/store/resolved-check.drv",
+      "outputName": "out",
+      "outPath": "/nix/store/result-check",
+      "signerKeyNames": ["ci.closurelabs.dev-1"],
+      "signatureCount": 1
+    }
+  ],
+  "opaquePaths": ["/nix/store/result-check"],
+  "diagnostics": [
+    "input-addressed dependency counts are unavailable through the Nix 2.35 CLI"
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "schema": "dev.closurelabs.once/trust/v1",
+  "installable": ".#demo",
+  "decision": "ACCEPTED_WITH_IA_TRUST",
+  "action": "SKIP",
+  "maySkip": true,
+  "requiredSignatures": 1,
+  "acceptedKeyNames": ["ci.closurelabs.dev-1"],
+  "iaMode": "warn",
+  "traceStatus": "found",
+  "acceptedSigners": ["ci.closurelabs.dev-1"],
+  "acceptedSignatureCount": 1,
+  "diagnostics": [
+    "input-addressed dependency counts are unavailable through the Nix 2.35 CLI"
+  ]
+}
