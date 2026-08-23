@@ -1,0 +1,5 @@
+* @Closure-Labs/maintainers
+/.github/workflows/ @Closure-Labs/maintainers
+/nix/ @Closure-Labs/maintainers
+/.once.toml @Closure-Labs/maintainers
+

@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Determinate Nix
+        uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
+        with:
+          extra-conf: |
+            experimental-features = nix-command flakes ca-derivations
+
+      - name: Require Nix 2.35+
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(nix --version | awk '{print $NF}')
+          nix eval --expr "assert builtins.compareVersions \"$version\" \"2.35.0\" >= 0; true"
+
+      - name: Format
+        run: nix develop -c cargo fmt --all -- --check
+
+      - name: Lint
+        run: nix develop -c cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Test
+        run: nix develop -c cargo test
+
+      - name: Check flake
+        run: nix flake check --print-build-logs
+
+      - name: Run Once proof of concept
+        # The disposable chroot store needs a mount namespace unavailable on
+        # the hosted VM itself, so run this isolated step in a pinned container.
+        shell: bash
+        run: |
+          docker run --privileged --rm \
+            --env CARGO_TARGET_DIR=/var/tmp/once-target \
+            --env ONCE_BIN=/var/tmp/once-target/debug/once \
+            --env RUNNER_TEMP=/var \
+            --volume "$GITHUB_WORKSPACE:/workspace:ro" \
+            --workdir /workspace \
+            nixos/nix@sha256:377d4887aca98f0dfa12971c1ea6d6a625a435d8b610d4c95a436843da6fbfd1 \
+            nix --extra-experimental-features 'nix-command flakes ca-derivations' \
+            develop path:/workspace -c ./scripts/demo.sh
+
+      - name: Summarize demonstration
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo '## Once proof-of-concept phases'
+            echo
+            echo '- Cold trace miss'
+            echo '- Signed local build'
+            echo '- Native build-trace-v2 cache publication'
+            echo '- Expensive artifact deletion'
+            echo '- Trace-only local recognition without artifact restoration'
+            echo '- Relevant source invalidation'
+            echo '- Irrelevant documentation stability'
+            echo '- Policy-version invalidation'
+          } >> "$GITHUB_STEP_SUMMARY"
