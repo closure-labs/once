@@ -12,6 +12,8 @@ All notable changes to Once are documented in this file. The project follows
   mismatch.
 - Provide a separately publishable policy-flake template and document its
   protected update and invocation boundaries.
+- Package `doctor`, `check`, and `run` as a pinned composite GitHub Action with
+  versioned JSON output, exact policy exit codes, and fail-closed defaults.
 
 ### Fixed
 
