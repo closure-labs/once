@@ -1,7 +1,7 @@
 # Remote build-trace trust audit
 
-**Audit date:** 2026-08-23  
-**Target release:** Once v0.2.0  
+**Audit date:** 2026-08-23
+**Scope:** Once v0.2.0 and follow-up version proof
 **Decision:** Remote build-trace reuse remains `UNSUPPORTED`.
 
 ## Question
@@ -13,14 +13,20 @@ building, substituting, copying, or otherwise realizing the referenced output?
 ## Audited revisions
 
 - Nix 2.35.2 at
-  [`2c73b59`](https://github.com/NixOS/nix/commit/2c73b59da29606068c0c98db015dd3a66955525d),
-  the version targeted by Once v0.2.
+  `2c73b59da29606068c0c98db015dd3a66955525d`, the version targeted by
+  Once v0.2.
 - Nix upstream at
-  [`88b09c6`](https://github.com/NixOS/nix/commit/88b09c64fbea076a0376830d98e5331f70ed31a3),
-  current when this audit was performed.
+  `88b09c64fbea076a0376830d98e5331f70ed31a3`, reporting
+  `2.36.0pre20260822_88b09c6` when this audit was performed.
 
 The audit covered the build-trace CLI implementation, realisation signature
 validation, substitution goals, and the public C store API.
+
+Both Nix repositories were downloaded as full-revision-pinned, immutable local
+source trees with `nix flake archive`. All `libstore` and CLI source findings
+were checked from those local copies. The reviewed files and reproduction
+commands are recorded in the
+[2.35.2/2.36 proof](nix-2.35-2.36-build-trace-proof.md#local-source-review).
 
 ## Findings
 
@@ -43,17 +49,24 @@ output path, and content verification reads the referenced NAR.
 
 Upstream has improved its internal substitution machinery:
 
-- [`018d646`](https://github.com/NixOS/nix/commit/018d6462def78e6f1b940d497ffaa3828831af03)
-  separated build-trace retrieval from store-object fetching, although its
-  normal caller proceeds to path substitution.
-- [`1a17ffb`](https://github.com/NixOS/nix/commit/1a17ffbb557dd797c5df995a34a43b59a395f3d4)
-  made `DrvOutputSubstitutionGoal` reject a remote realisation when
+- `018d6462def78e6f1b940d497ffaa3828831af03` separated build-trace
+  retrieval from store-object fetching, although its normal caller proceeds to
+  path substitution.
+- `1a17ffbb557dd797c5df995a34a43b59a395f3d4` made
+  `DrvOutputSubstitutionGoal` reject a remote realisation when
   `realisationIsUntrusted` finds no signature from the store's trusted public
   keys.
 
 These are private C++ libstore paths used during substitution. The read-only
 `build-trace info` command still serializes remote realisations without calling
 the validation primitive.
+
+The isolated version matrix confirms both behaviors. With an unrelated key,
+Nix 2.35.2 realizes the content-addressed output, while the pinned 2.36
+prerelease rejects the build trace and leaves the output absent. In both
+versions, the read-only command returns identical trace JSON for the accepted
+and unrelated keys without requesting the referenced output NAR. Once returns
+`UNSUPPORTED` in both cases.
 
 ### Public C API
 

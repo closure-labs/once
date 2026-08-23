@@ -49,6 +49,7 @@
           clippy
           jq
           nixfmt
+          python3
           rustc
           rustfmt
           shellcheck

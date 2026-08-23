@@ -39,8 +39,13 @@ jobs:
           nix develop -c actionlint
           nix develop -c actionlint examples/once-policy/.github/workflows/ci.yml
 
-      - name: Lint GitHub Action wrapper
-        run: nix develop -c shellcheck scripts/github-action.sh tests/github-action.sh
+      - name: Lint shell scripts
+        run: |
+          nix develop -c shellcheck \
+            scripts/build-trace-version-case.sh \
+            scripts/build-trace-version-matrix.sh \
+            scripts/github-action.sh \
+            tests/github-action.sh
 
       - name: Test
         run: nix develop -c cargo test
