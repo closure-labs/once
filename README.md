@@ -73,7 +73,8 @@ update flow.
 Nix 2.35 does not validate signatures returned by its remote build-trace
 inspection command. Once therefore supports skipping from a trusted local
 store and reports remote trace hits as `UNSUPPORTED`; it never trusts a signer
-label alone.
+label alone. See the [v0.2 upstream trust audit](docs/planning/remote-trust-audit.md)
+for the audited interfaces and reopening criteria.
 
 ```console
 $ once check .#checks.x86_64-linux.demo-once

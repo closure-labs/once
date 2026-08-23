@@ -21,3 +21,7 @@ The local probe confirmed that deleting a CA output does not delete its base
 trace. Signed cache publication must use a derivation-output installable such as
 `/nix/store/...drv^out`; copying the opaque output path alone does not publish
 the build trace.
+
+The [remote build-trace trust audit](planning/remote-trust-audit.md) found no
+public Nix 2.35.2 interface that validates a remote realisation signature while
+remaining read-only. Remote trace hits therefore remain `UNSUPPORTED`.

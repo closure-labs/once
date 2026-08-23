@@ -1133,7 +1133,8 @@ Add to README as future work:
 
 - a separate protected Closure Labs "Once policy" flake/repository so candidate PR code cannot redefine what constitutes a passing Once check (implemented for v0.2);
 - reusable GitHub Action (implemented for v0.2);
-- Cachix adapter when native `build-trace-v2` behavior is verified;
+- Cachix adapter when Nix exposes a safe, verifiable, read-only build-trace
+  interface; the v0.2 upstream audit found no qualifying CLI or public C API;
 - S3 backend using GitHub OIDC;
 - Harmonia integration;
 - stricter IA store-object lock/verification policy;

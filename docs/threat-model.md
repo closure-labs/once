@@ -8,7 +8,12 @@ policy. A signer name in JSON is never sufficient by itself.
 
 Nix 2.35's remote build-trace inspection command does not perform that
 validation. Remote trace hits consequently fail closed as `UNSUPPORTED` in
-v0.1. Locally registered traces rely on the local store as the trust boundary.
+v0.2. Locally registered traces rely on the local store as the trust boundary.
+Current Nix upstream validates realisation signatures inside its private
+substitution machinery, but exposes neither a read-only validating CLI nor a
+stable public build-trace C API. Once does not bind to that private ABI or begin
+substitution merely to establish trust; see the
+[remote trust audit](planning/remote-trust-audit.md).
 
 Compromise of an accepted signing key permits false build-trace claims until the
 key is revoked. Private keys must not be committed, exposed to untrusted pull
