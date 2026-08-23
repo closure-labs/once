@@ -1,7 +1,5 @@
 # Once
 
-[![FlakeHub](https://img.shields.io/endpoint?url=https://flakehub.com/f/closure-labs/once/badge)](https://flakehub.com/flake/closure-labs/once)
-
 **Build once. Recognize it thereafter.**
 
 Once is an experimental Closure Labs project for recognizing when an accepted
@@ -21,44 +19,53 @@ It is not an independently auditable proof that arbitrary computation occurred.
 
 ## Quick start
 
+Once is distributed as both a conventional Nix package expression and a flake
+package directly from this repository. The current package builds v0.4.1.
+
+From a repository checkout, build the conventional package expression:
+
 ```console
-$ nix develop
-$ cargo build
-$ ./target/debug/once doctor
-$ ./scripts/demo.sh
+$ nix-build
+$ ./result/bin/once --version
 ```
 
-To install the tagged release into a Nix profile:
+Or install the tagged flake package into a Nix profile:
 
 ```console
-$ nix profile install github:closure-labs/once/v0.4.0
+$ nix profile install github:closure-labs/once/v0.4.1#once
 $ once --config /path/to/.once.toml doctor
 ```
 
-To run it without installing, from a checkout containing `.once.toml`:
+Run the same package without installing it:
 
 ```console
-$ nix run github:closure-labs/once/v0.4.0 -- --config .once.toml doctor
+$ nix run github:closure-labs/once/v0.4.1#once -- \
+    --config /path/to/.once.toml doctor
 ```
 
-Tagged releases are also published as public FlakeHub flakes:
+Build the package into `./result`:
+
+```console
+$ nix build github:closure-labs/once/v0.4.1#once
+$ ./result/bin/once --version
+```
+
+Pin a release from this repository as a downstream flake input:
 
 ```nix
 {
-  inputs.once.url = "https://flakehub.com/f/closure-labs/once/0.4.*";
+  inputs.once.url = "github:closure-labs/once/v0.4.1";
 }
 ```
 
-Starting with v0.1.1, each GitHub release includes an `x86_64-linux` archive
-and SHA-256 checksum.
-
-The v0.4 flake also exports a Nixpkgs-compatible package overlay:
+Use `once.packages.${system}.once` directly, or add
+`once.overlays.default` to a Nixpkgs package set to expose `pkgs.once`:
 
 ```nix
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
-    once.url = "github:closure-labs/once/v0.4.0";
+    once.url = "github:closure-labs/once/v0.4.1";
     once.inputs.nixpkgs.follows = "nixpkgs";
   };
 
@@ -73,6 +80,25 @@ The v0.4 flake also exports a Nixpkgs-compatible package overlay:
       packages.${system}.default = pkgs.once;
     };
 }
+```
+
+See the [Nix package guide](docs/nix-package.md) for downstream flake and NixOS
+examples for both package interfaces. The GitHub repository and its tagged
+revisions are the authoritative package source during the proof-of-concept and
+early-maturity phases. An official Nixpkgs submission is a long-term release
+milestone after Once has matured; it is not the current distribution path.
+Starting with v0.1.1, each GitHub release also includes an `x86_64-linux`
+archive and SHA-256 checksum.
+
+For source development:
+
+```console
+$ git clone https://github.com/closure-labs/once.git
+$ cd once
+$ nix develop
+$ cargo build
+$ ./target/debug/once doctor
+$ ./scripts/demo.sh
 ```
 
 `once check` never intentionally builds the requested installable. `once run`
@@ -129,12 +155,13 @@ See [architecture](docs/architecture.md), [threat model](docs/threat-model.md),
 
 ## Status and roadmap
 
-This is a proof of concept. v0.4 provides a reusable Nixpkgs package and
-overlay on top of the substitution evidence, deterministic signed `.det`
-artifacts, protected policy flake, and reusable GitHub Action delivered in
-earlier releases. Future work includes durable HTTP/S3/Harmonia backends,
-stricter input-addressed dependency policy, multi-signature thresholds, and
-additional platforms.
+This is a proof of concept. v0.4 provides a repository-hosted Nix package and
+Nixpkgs-compatible overlay on top of the substitution evidence, deterministic
+signed `.det` artifacts, protected policy flake, and reusable GitHub Action
+delivered in earlier releases. Future work includes durable HTTP/S3/Harmonia
+backends, stricter input-addressed dependency policy, multi-signature
+thresholds, and additional platforms. Official inclusion in Nixpkgs is planned
+after these interfaces and their security behavior have matured.
 
 Copyright (C) 2026 Closure Labs and Dale Morgan. Licensed under
 [Apache-2.0](LICENSE).

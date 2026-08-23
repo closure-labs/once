@@ -96,6 +96,9 @@ jobs:
       - name: Check flake
         run: nix flake check --print-build-logs
 
+      - name: Check conventional Nix package
+        run: nix-build --no-out-link default.nix
+
       - name: Check protected policy flake template
         run: nix flake check path:./examples/once-policy --print-build-logs
 

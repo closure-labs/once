@@ -5,12 +5,26 @@ All notable changes to Once are documented in this file. The project follows
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-08-23
+
+### Added
+
+- Add a pinned `default.nix` entry point for conventional `nix-build` use from
+  a repository checkout.
+
+### Changed
+
+- Make the Closure Labs GitHub repository the documented package source for
+  both conventional Nix and flake consumers during Once's early-maturity phase.
+- Record official Nixpkgs submission as a long-term milestone after the package
+  interfaces and security behavior have matured.
+
 ## [0.4.0] - 2026-08-23
 
 ### Added
 
-- Export Once through a reusable Nixpkgs overlay and a standalone
-  `callPackage`-compatible package expression.
+- Export Once as a repository-hosted Nix package through a reusable Nixpkgs
+  overlay and standalone `callPackage`-compatible package expression.
 - Verify the installed package reports the release version during Nix builds.
 
 ### Changed
@@ -108,4 +122,5 @@ All notable changes to Once are documented in this file. The project follows
 [0.2.0]: https://github.com/closure-labs/once/compare/v0.1.1...v0.2.0
 [0.3.0]: https://github.com/closure-labs/once/compare/v0.2.0...v0.3.0
 [0.4.0]: https://github.com/closure-labs/once/compare/v0.3.0...v0.4.0
-[Unreleased]: https://github.com/closure-labs/once/compare/v0.4.0...HEAD
+[0.4.1]: https://github.com/closure-labs/once/compare/v0.4.0...v0.4.1
+[Unreleased]: https://github.com/closure-labs/once/compare/v0.4.1...HEAD
