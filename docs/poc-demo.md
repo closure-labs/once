@@ -31,3 +31,5 @@ signature enforcement without modifying host trust configuration.
 
 See the [version-matrix proof](planning/nix-2.35-2.36-build-trace-proof.md) for
 the exact pins, security controls, observed results, and limitations.
+The matrix can package its successful evidence as a signed
+[`.det` artifact](deterministic-artifacts.md).

@@ -44,7 +44,9 @@ jobs:
           nix develop -c shellcheck \
             scripts/build-trace-version-case.sh \
             scripts/build-trace-version-matrix.sh \
+            scripts/det-artifact.sh \
             scripts/github-action.sh \
+            tests/det-artifact.sh \
             tests/github-action.sh
 
       - name: Test
@@ -52,6 +54,9 @@ jobs:
 
       - name: Test GitHub Action wrapper
         run: nix develop -c bash tests/github-action.sh
+
+      - name: Test deterministic artifact tooling
+        run: nix develop -c bash tests/det-artifact.sh
 
       - name: Verify minimum community Nix release
         env:

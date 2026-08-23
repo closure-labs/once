@@ -147,14 +147,15 @@ for _ in {1..50}; do
   sleep 0.1
 done
 test -n "$cache_port"
-cache_store="http://127.0.0.1:$cache_port"
+cache_url="http://127.0.0.1:$cache_port"
+cache_store="$cache_url?trusted=false"
 cache_ready=false
 for _ in {1..50}; do
   if python3 -c '
 import sys
 import urllib.request
 urllib.request.urlopen(sys.argv[1]).read()
-' "$cache_store/nix-cache-info" 2> /dev/null; then
+' "$cache_url/nix-cache-info" 2> /dev/null; then
     cache_ready=true
     break
   fi
@@ -266,6 +267,8 @@ jq -n \
       exitCode: $onceRemoteExitCode
     },
     substitution: {
+      consumerRequireSignatures: true,
+      substituterTrusted: false,
       unrelatedKeyExitCode: $wrongKeySubstitutionExitCode,
       buildTraceSignatureRejected: $buildTraceSignatureRejected,
       unrelatedKeyRealizedOutput: $wrongKeyRealizedOutput,

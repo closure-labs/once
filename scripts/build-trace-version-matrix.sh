@@ -4,6 +4,7 @@ umask 077
 
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 case_runner="$repo_root/scripts/build-trace-version-case.sh"
+artifact_tool="$repo_root/scripts/det-artifact.sh"
 
 baseline_revision=2c423e03bbafcff28bfadc6781a4a8257f205cb5
 baseline_installable="github:NixOS/nixpkgs/$baseline_revision#nixVersions.latest"
@@ -66,7 +67,9 @@ jq -e '
   .onceRemoteDecision == {"decision": "UNSUPPORTED", "exitCode": 20} and
   .substitution == {
     "buildTraceSignatureRejected": false,
+    "consumerRequireSignatures": true,
     "correctKeyRealizedOutput": true,
+    "substituterTrusted": false,
     "unrelatedKeyExitCode": 0,
     "unrelatedKeyRealizedOutput": true
   }
@@ -81,7 +84,9 @@ jq -e '
   } and
   .onceRemoteDecision == {"decision": "UNSUPPORTED", "exitCode": 20} and
   .substitution.buildTraceSignatureRejected == true and
+  .substitution.consumerRequireSignatures == true and
   .substitution.correctKeyRealizedOutput == true and
+  .substitution.substituterTrusted == false and
   .substitution.unrelatedKeyExitCode != 0 and
   .substitution.unrelatedKeyRealizedOutput == false
 ' "$forward_result" > /dev/null
@@ -92,6 +97,7 @@ jq -e --slurpfile forward "$forward_result" '
   .outputPath == $forward[0].outputPath
 ' "$baseline_result" > /dev/null
 
+matrix_result="$matrix_tmp/matrix.json"
 jq -n \
   --arg schema 'dev.closurelabs.once/build-trace-version-matrix/v1' \
   --arg baselineRevision "$baseline_revision" \
@@ -115,5 +121,31 @@ jq -n \
     results: {
       baseline: $baseline[0],
       forward: $forward[0]
+    },
+    conclusions: {
+      readOnlyRemoteTrace: "unverified",
+      nix235UnrelatedKeySubstitution: "accepted-without-trace-signature-enforcement",
+      nix236UnrelatedKeySubstitution: "rejected-untrusted",
+      nix236AcceptedKeySubstitution: "accepted-after-internal-signature-check"
     }
-  }'
+  }' > "$matrix_result"
+
+det_output=${ONCE_MATRIX_DET_OUTPUT:-}
+det_private_key=${ONCE_DET_PRIVATE_KEY:-}
+if [[ -n "$det_output" || -n "$det_private_key" ]]; then
+  [[ -n "$det_output" && -n "$det_private_key" ]] || {
+    echo "ONCE_MATRIX_DET_OUTPUT and ONCE_DET_PRIVATE_KEY must be set together" >&2
+    exit 1
+  }
+  [[ -x "$artifact_tool" ]] || {
+    echo "Artifact tool is not executable: $artifact_tool" >&2
+    exit 1
+  }
+  "$artifact_tool" create \
+    --payload "$matrix_result" \
+    --payload-type application/vnd.closurelabs.once.build-trace-version-matrix.v1+json \
+    --private-key "$det_private_key" \
+    --output "$det_output"
+fi
+
+cat "$matrix_result"
