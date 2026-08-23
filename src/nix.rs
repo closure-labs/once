@@ -315,7 +315,25 @@ pub fn parse_nix_version(value: &str) -> Result<Version> {
                 !(character.is_ascii_alphanumeric() || matches!(character, '.' | '-' | '+'))
             })
         })
-        .find_map(|part| Version::parse(part).ok())
+        .find_map(|part| {
+            Version::parse(part).ok().or_else(|| {
+                let (release, snapshot) = part.split_once("pre")?;
+                if snapshot.is_empty() {
+                    return None;
+                }
+                let snapshot = snapshot
+                    .chars()
+                    .map(|character| {
+                        if character.is_ascii_alphanumeric() || character == '-' {
+                            character
+                        } else {
+                            '-'
+                        }
+                    })
+                    .collect::<String>();
+                Version::parse(&format!("{release}-pre.{snapshot}")).ok()
+            })
+        })
         .ok_or_else(|| OnceError::NixVersion(value.to_owned()))
 }
 
@@ -385,6 +403,18 @@ mod tests {
             parse_nix_version("nix (Determinate Nix 3.22.2) 2.35.2").expect("version"),
             Version::new(2, 35, 2)
         );
+    }
+
+    #[test]
+    fn parses_upstream_snapshot_version() {
+        let version =
+            parse_nix_version("nix (Nix) 2.36.0pre20260822_88b09c6").expect("snapshot version");
+        assert_eq!(
+            version,
+            Version::parse("2.36.0-pre.20260822-88b09c6").expect("normalized version")
+        );
+        assert!(version > Version::new(2, 35, 2));
+        assert!(version < Version::new(2, 36, 0));
     }
 
     #[test]

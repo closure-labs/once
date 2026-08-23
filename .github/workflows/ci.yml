@@ -48,6 +48,15 @@ jobs:
       - name: Test GitHub Action wrapper
         run: nix develop -c bash tests/github-action.sh
 
+      - name: Verify minimum community Nix release
+        env:
+          NIX_CONFIG: extra-experimental-features = nix-command flakes ca-derivations
+          NIXPKGS_NIX_REVISION: 2c423e03bbafcff28bfadc6781a4a8257f205cb5
+        run: |
+          nix shell \
+            "github:NixOS/nixpkgs/$NIXPKGS_NIX_REVISION#nixVersions.latest" \
+            -c ./target/debug/once --json doctor
+
       - name: Verify protected policy bootstrap
         env:
           ONCE_POLICY_REVISION: 5a4234004dc9948a1d45d462f947b10411d91a33
