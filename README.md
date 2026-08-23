@@ -31,26 +31,49 @@ $ ./scripts/demo.sh
 To install the tagged release into a Nix profile:
 
 ```console
-$ nix profile install github:closure-labs/once/v0.3.0
+$ nix profile install github:closure-labs/once/v0.4.0
 $ once --config /path/to/.once.toml doctor
 ```
 
 To run it without installing, from a checkout containing `.once.toml`:
 
 ```console
-$ nix run github:closure-labs/once/v0.3.0 -- --config .once.toml doctor
+$ nix run github:closure-labs/once/v0.4.0 -- --config .once.toml doctor
 ```
 
 Tagged releases are also published as public FlakeHub flakes:
 
 ```nix
 {
-  inputs.once.url = "https://flakehub.com/f/closure-labs/once/0.3.*";
+  inputs.once.url = "https://flakehub.com/f/closure-labs/once/0.4.*";
 }
 ```
 
 Starting with v0.1.1, each GitHub release includes an `x86_64-linux` archive
 and SHA-256 checksum.
+
+The v0.4 flake also exports a Nixpkgs-compatible package overlay:
+
+```nix
+{
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+    once.url = "github:closure-labs/once/v0.4.0";
+    once.inputs.nixpkgs.follows = "nixpkgs";
+  };
+
+  outputs = { nixpkgs, once, ... }:
+    let
+      system = "x86_64-linux";
+      pkgs = import nixpkgs {
+        inherit system;
+        overlays = [ once.overlays.default ];
+      };
+    in {
+      packages.${system}.default = pkgs.once;
+    };
+}
+```
 
 `once check` never intentionally builds the requested installable. `once run`
 builds only after a `MISS`, then requires the resulting trace to satisfy policy.
@@ -106,11 +129,12 @@ See [architecture](docs/architecture.md), [threat model](docs/threat-model.md),
 
 ## Status and roadmap
 
-This is a proof of concept. v0.3 adds reproducible Nix 2.35.2/2.36 prerelease
-substitution evidence and deterministic signed `.det` artifacts to the
-protected policy flake and reusable GitHub Action delivered in v0.2. Future
-work includes durable HTTP/S3/Harmonia backends, stricter input-addressed
-dependency policy, multi-signature thresholds, and additional platforms.
+This is a proof of concept. v0.4 provides a reusable Nixpkgs package and
+overlay on top of the substitution evidence, deterministic signed `.det`
+artifacts, protected policy flake, and reusable GitHub Action delivered in
+earlier releases. Future work includes durable HTTP/S3/Harmonia backends,
+stricter input-addressed dependency policy, multi-signature thresholds, and
+additional platforms.
 
 Copyright (C) 2026 Closure Labs and Dale Morgan. Licensed under
 [Apache-2.0](LICENSE).

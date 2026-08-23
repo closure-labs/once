@@ -5,6 +5,19 @@ All notable changes to Once are documented in this file. The project follows
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-08-23
+
+### Added
+
+- Export Once through a reusable Nixpkgs overlay and a standalone
+  `callPackage`-compatible package expression.
+- Verify the installed package reports the release version during Nix builds.
+
+### Changed
+
+- Source the development package set directly from the community Nixpkgs
+  upstream instead of the FlakeHub mirror.
+
 ## [0.3.0] - 2026-08-23
 
 ### Added
@@ -94,4 +107,5 @@ All notable changes to Once are documented in this file. The project follows
 [0.1.1]: https://github.com/closure-labs/once/compare/v0.1.0...v0.1.1
 [0.2.0]: https://github.com/closure-labs/once/compare/v0.1.1...v0.2.0
 [0.3.0]: https://github.com/closure-labs/once/compare/v0.2.0...v0.3.0
-[Unreleased]: https://github.com/closure-labs/once/compare/v0.3.0...HEAD
+[0.4.0]: https://github.com/closure-labs/once/compare/v0.3.0...v0.4.0
+[Unreleased]: https://github.com/closure-labs/once/compare/v0.4.0...HEAD
