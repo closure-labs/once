@@ -5,6 +5,8 @@ All notable changes to Once are documented in this file. The project follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-23
+
 ### Added
 
 - Load policy from an immutable external GitHub flake, verify its full revision
@@ -18,11 +20,15 @@ All notable changes to Once are documented in this file. The project follows
   expand human-readable `explain` output while preserving policy exit codes.
 - Lock every public v1 JSON shape with golden fixtures and cover fail-closed,
   no-target-build diagnostic behavior across ambiguous trace states.
+- Verify the minimum supported Nix release through a full-commit-pinned
+  community nixpkgs `nixVersions.latest` compatibility check in CI.
 
 ### Fixed
 
 - Generate release checksum files with portable archive basenames so
   `sha256sum -c` works after downloading the assets into any directory.
+- Parse Nix upstream prerelease snapshot versions such as
+  `2.36.0pre20260822_88b09c6` without weakening minimum-version comparisons.
 
 ### Security
 
@@ -69,4 +75,5 @@ All notable changes to Once are documented in this file. The project follows
 
 [0.1.0]: https://github.com/closure-labs/once/releases/tag/v0.1.0
 [0.1.1]: https://github.com/closure-labs/once/compare/v0.1.0...v0.1.1
-[Unreleased]: https://github.com/closure-labs/once/compare/v0.1.1...HEAD
+[0.2.0]: https://github.com/closure-labs/once/compare/v0.1.1...v0.2.0
+[Unreleased]: https://github.com/closure-labs/once/compare/v0.2.0...HEAD

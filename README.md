@@ -31,21 +31,21 @@ $ ./scripts/demo.sh
 To install the tagged release into a Nix profile:
 
 ```console
-$ nix profile install github:closure-labs/once/v0.1.1
+$ nix profile install github:closure-labs/once/v0.2.0
 $ once --config /path/to/.once.toml doctor
 ```
 
 To run it without installing, from a checkout containing `.once.toml`:
 
 ```console
-$ nix run github:closure-labs/once/v0.1.1 -- --config .once.toml doctor
+$ nix run github:closure-labs/once/v0.2.0 -- --config .once.toml doctor
 ```
 
 Tagged releases are also published as public FlakeHub flakes:
 
 ```nix
 {
-  inputs.once.url = "https://flakehub.com/f/closure-labs/once/0.1.*";
+  inputs.once.url = "https://flakehub.com/f/closure-labs/once/0.2.*";
 }
 ```
 
