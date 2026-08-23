@@ -11,8 +11,10 @@ hash graph. Backend support only selects/configures a Nix store.
 
 In Nix 2.35, `build-trace info` does not validate signatures returned by a
 remote store. Once therefore treats the local store as the only supported trust
-boundary for v0.1 and returns `UNSUPPORTED` for remote trace hits. It does not
-substitute signer-name matching for cryptographic verification.
+boundary and returns `UNSUPPORTED` for remote trace hits. The v0.2
+[upstream audit](planning/remote-trust-audit.md) found no read-only CLI or
+public C API that closes this gap. Once does not substitute signer-name
+matching for cryptographic verification.
 
 The signature threshold remains exactly one in v0.2. Higher thresholds remain
 unsupported because the Nix 2.35 public CLI cannot prove which individual

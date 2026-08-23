@@ -24,6 +24,12 @@ All notable changes to Once are documented in this file. The project follows
 - Generate release checksum files with portable archive basenames so
   `sha256sum -c` works after downloading the assets into any directory.
 
+### Security
+
+- Re-audit Nix 2.35.2 and current upstream remote build-trace validation. No
+  public read-only CLI or stable C API meets Once's trust boundary, so remote
+  trace hits remain fail-closed as `UNSUPPORTED`.
+
 ## [0.1.1] - 2026-08-23
 
 ### Changed
