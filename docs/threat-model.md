@@ -19,9 +19,14 @@ requests, or placed in public test fixtures.
 A malicious change can weaken a check or alter its policy version. Repository
 pull requests, required CI, and protected workflow/configuration files are the
 v0.1 boundary. CODEOWNERS records responsibility, but approving owner review
-cannot be required until Closure Labs adds a second maintainer. A future release
-should source policy from a separately protected flake or repository that
-candidate code cannot redefine.
+cannot be required until Closure Labs adds a second maintainer.
+
+In v0.2, protected CI can instead load policy from a separately protected flake
+pinned by a full commit and verified against Nix metadata. This prevents a
+candidate from changing policy contents through `.once.toml`. The protected
+workflow must also own the flake reference and expected revision; allowing a
+candidate to choose either value would move the vulnerability rather than
+remove it. Candidate derivation semantics still require repository review.
 
 ## Nix boundaries
 

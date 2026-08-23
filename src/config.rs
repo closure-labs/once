@@ -58,8 +58,12 @@ impl Config {
             path: path.to_path_buf(),
             source,
         })?;
-        let config: Self = toml::from_str(&source).map_err(|source| OnceError::ParseConfig {
-            path: path.to_path_buf(),
+        Self::parse(&source, &path.display().to_string())
+    }
+
+    pub fn parse(source: &str, origin: &str) -> Result<Self> {
+        let config: Self = toml::from_str(source).map_err(|source| OnceError::ParseConfig {
+            origin: origin.to_owned(),
             source,
         })?;
         config.validate()?;
@@ -80,7 +84,7 @@ impl Config {
         }
         if self.trust.required_signatures != 1 {
             return Err(OnceError::InvalidConfig(
-                "v0.1 supports trust.required_signatures = 1 only".into(),
+                "Once currently supports trust.required_signatures = 1 only".into(),
             ));
         }
         if self.trust.accepted_key_names.is_empty() {

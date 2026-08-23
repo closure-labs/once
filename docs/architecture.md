@@ -14,7 +14,7 @@ remote store. Once therefore treats the local store as the only supported trust
 boundary for v0.1 and returns `UNSUPPORTED` for remote trace hits. It does not
 substitute signer-name matching for cryptographic verification.
 
-The v0.1 signature threshold is exactly one. Higher thresholds remain
+The signature threshold remains exactly one in v0.2. Higher thresholds remain
 unsupported because the Nix 2.35 public CLI cannot prove which individual
 signatures passed validation.
 
@@ -22,3 +22,10 @@ signatures passed validation.
 target derivation and embeds the Once policy version in its semantics. A target
 or policy change therefore changes the resolved check identity even when the
 small result payload remains byte-for-byte identical.
+
+For protected CI, v0.2 can materialize configuration from an external policy
+flake pinned by a full GitHub commit. Once independently requires the Nix
+metadata revision to match the expected commit, realizes only the flake's tiny
+`#policy` text output, and reads it through the configured Nix store. Mutable
+policy references fail before target evaluation. Local TOML remains available
+for development but is not an authoritative protected-CI boundary.

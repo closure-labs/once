@@ -100,6 +100,54 @@ impl NixAdapter {
         })
     }
 
+    pub fn load_policy(&self, reference: &str, expected_revision: &str) -> Result<String> {
+        validate_policy_reference(reference, expected_revision)?;
+
+        let metadata = self.run_nix(["flake", "metadata", reference, "--json"])?;
+        if !metadata.success {
+            return Err(self.failed(metadata));
+        }
+        let actual_revision = parse_flake_revision(&metadata.stdout)?;
+        if !actual_revision.eq_ignore_ascii_case(expected_revision) {
+            return Err(OnceError::Policy(format!(
+                "flake resolved to revision {actual_revision}, expected {expected_revision}"
+            )));
+        }
+
+        let installable = format!("{reference}#policy");
+        let build = self.run_nix([
+            "build",
+            installable.as_str(),
+            "--no-link",
+            "--print-out-paths",
+        ])?;
+        if !build.success {
+            return Err(self.failed(build));
+        }
+        let mut paths = build.stdout.lines().filter(|line| !line.trim().is_empty());
+        let path = paths
+            .next()
+            .map(str::trim)
+            .filter(|path| path.starts_with("/nix/store/"))
+            .ok_or_else(|| {
+                OnceError::Policy("policy build did not return one Nix store path".into())
+            })?;
+        if paths.next().is_some() {
+            return Err(OnceError::Policy(
+                "policy build returned more than one Nix store path".into(),
+            ));
+        }
+
+        let policy = self.run_nix(["store", "cat", path])?;
+        if !policy.success {
+            return Err(self.failed(policy));
+        }
+        if policy.stdout.trim().is_empty() {
+            return Err(OnceError::Policy("policy artifact is empty".into()));
+        }
+        Ok(policy.stdout)
+    }
+
     pub fn evaluate(&self, installable: &str) -> Result<Evaluation> {
         let mut arguments = vec!["derivation", "show", installable];
         if let Some(eval_store) = &self.eval_store {
@@ -271,6 +319,54 @@ pub fn parse_nix_version(value: &str) -> Result<Version> {
         .ok_or_else(|| OnceError::NixVersion(value.to_owned()))
 }
 
+fn validate_policy_reference(reference: &str, expected_revision: &str) -> Result<()> {
+    if expected_revision.len() != 40
+        || !expected_revision
+            .bytes()
+            .all(|character| character.is_ascii_hexdigit())
+    {
+        return Err(OnceError::Policy(
+            "policy revision must be a full 40-character Git commit".into(),
+        ));
+    }
+
+    let path = reference.strip_prefix("github:").ok_or_else(|| {
+        OnceError::Policy("v0.2 requires a github:OWNER/REPO/COMMIT policy reference".into())
+    })?;
+    let mut segments = path.split('/');
+    let owner = segments.next().unwrap_or_default();
+    let repository = segments.next().unwrap_or_default();
+    let revision = segments.next().unwrap_or_default();
+    if owner.is_empty()
+        || repository.is_empty()
+        || segments.next().is_some()
+        || !revision.eq_ignore_ascii_case(expected_revision)
+    {
+        return Err(OnceError::Policy(
+            "policy reference must embed the same full commit supplied by --policy-revision".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn parse_flake_revision(output: &str) -> Result<String> {
+    let metadata: serde_json::Value =
+        serde_json::from_str(output).map_err(|source| OnceError::NixJson {
+            source,
+            output: output.to_owned(),
+        })?;
+    metadata
+        .get("revision")
+        .and_then(serde_json::Value::as_str)
+        .or_else(|| {
+            metadata
+                .pointer("/locked/rev")
+                .and_then(serde_json::Value::as_str)
+        })
+        .map(ToOwned::to_owned)
+        .ok_or_else(|| OnceError::Policy("Nix metadata did not report a locked revision".into()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -297,5 +393,30 @@ mod tests {
         assert!(Version::new(2, 34, 9) < minimum);
         assert!(Version::new(2, 35, 0) >= minimum);
         assert!(Version::new(2, 36, 0) >= minimum);
+    }
+
+    #[test]
+    fn accepts_immutable_github_policy_reference() {
+        let revision = "0123456789abcdef0123456789abcdef01234567";
+        validate_policy_reference(
+            &format!("github:closure-labs/once-policy/{revision}"),
+            revision,
+        )
+        .expect("immutable reference");
+    }
+
+    #[test]
+    fn rejects_mutable_policy_reference() {
+        let revision = "0123456789abcdef0123456789abcdef01234567";
+        assert!(
+            validate_policy_reference("github:closure-labs/once-policy/main", revision).is_err()
+        );
+    }
+
+    #[test]
+    fn reads_revision_from_metadata() {
+        let revision = "0123456789abcdef0123456789abcdef01234567";
+        let output = format!(r#"{{"locked":{{"rev":"{revision}"}}}}"#);
+        assert_eq!(parse_flake_revision(&output).expect("revision"), revision);
     }
 }

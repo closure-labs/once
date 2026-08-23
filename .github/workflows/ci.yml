@@ -35,13 +35,27 @@ jobs:
         run: nix develop -c cargo clippy --all-targets --all-features -- -D warnings
 
       - name: Lint GitHub Actions workflows
-        run: nix develop -c actionlint
+        run: |
+          nix develop -c actionlint
+          nix develop -c actionlint examples/once-policy/.github/workflows/ci.yml
 
       - name: Test
         run: nix develop -c cargo test
 
+      - name: Verify protected policy bootstrap
+        env:
+          ONCE_POLICY_REVISION: 5a4234004dc9948a1d45d462f947b10411d91a33
+        run: |
+          nix develop -c ./target/debug/once \
+            --policy-flake "github:closure-labs/once-policy/$ONCE_POLICY_REVISION" \
+            --policy-revision "$ONCE_POLICY_REVISION" \
+            --json doctor
+
       - name: Check flake
         run: nix flake check --print-build-logs
+
+      - name: Check protected policy flake template
+        run: nix flake check path:./examples/once-policy --print-build-logs
 
       - name: Run Once proof of concept
         # The disposable chroot store needs a mount namespace unavailable on

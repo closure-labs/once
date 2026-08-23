@@ -1,0 +1,20 @@
+schema = 1
+
+[once]
+policy_version = "protected-v1"
+
+[nix]
+minimum_version = "2.35.0"
+required_experimental_features = [
+  "nix-command",
+  "flakes",
+  "ca-derivations",
+]
+
+[trust]
+required_signatures = 1
+accepted_key_names = ["ci.closurelabs.dev-1"]
+ia_mode = "warn"
+
+[reporting]
+github_summary = true
