@@ -77,7 +77,9 @@ label alone. See the [v0.2 upstream trust audit](docs/planning/remote-trust-audi
 for the audited interfaces and reopening criteria. A reproducible
 [2.35.2/2.36 prerelease proof](docs/planning/nix-2.35-2.36-build-trace-proof.md)
 demonstrates the newer internal substitution check while confirming that the
-read-only inspection boundary is unchanged.
+read-only inspection boundary is unchanged. Successful matrix evidence can be
+packaged and independently verified as a deterministic signed
+[`.det` artifact](docs/deterministic-artifacts.md).
 
 ```console
 $ once check .#checks.x86_64-linux.demo-once

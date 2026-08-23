@@ -50,6 +50,11 @@ The matrix runs sequentially because the forward Nix package and disposable
 store closures are comparatively large. It emits one versioned JSON document
 and exits nonzero if either pinned behavior changes.
 
+The result can also be emitted as a deterministic Ed25519-signed `.det`
+artifact. See the [deterministic artifact guide](../deterministic-artifacts.md)
+for key generation, matrix integration, verification, and signer-authorization
+requirements.
+
 ## Isolation and security controls
 
 - All producer, evaluator, consumer, and cache stores are created below a

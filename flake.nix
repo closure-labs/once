@@ -39,6 +39,20 @@
 
       checks.${system} = {
         rust-tests = once;
+        det-artifact-tests =
+          pkgs.runCommand "det-artifact-tests"
+            {
+              nativeBuildInputs = with pkgs; [
+                bash
+                coreutils
+                jq
+                openssl
+              ];
+            }
+            ''
+              bash ${self}/tests/det-artifact.sh
+              touch $out
+            '';
         inherit (demo) demo-expensive demo-once;
       };
 
@@ -49,6 +63,7 @@
           clippy
           jq
           nixfmt
+          openssl
           python3
           rustc
           rustfmt

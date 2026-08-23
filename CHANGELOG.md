@@ -10,6 +10,9 @@ All notable changes to Once are documented in this file. The project follows
 - Add a full-revision-pinned Nix 2.35.2/2.36 prerelease build-trace matrix
   using ephemeral keys, isolated stores, loopback HTTP, and accepted- versus
   unrelated-key substitution controls.
+- Add the `dev.closurelabs.det/v1` deterministic signed-JSON proof of concept,
+  including Ed25519 key generation, matrix artifact creation, pinned-key
+  verification, and negative security tests.
 
 ### Security
 
