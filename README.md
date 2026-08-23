@@ -31,21 +31,21 @@ $ ./scripts/demo.sh
 To install the tagged release into a Nix profile:
 
 ```console
-$ nix profile install github:closure-labs/once/v0.2.0
+$ nix profile install github:closure-labs/once/v0.3.0
 $ once --config /path/to/.once.toml doctor
 ```
 
 To run it without installing, from a checkout containing `.once.toml`:
 
 ```console
-$ nix run github:closure-labs/once/v0.2.0 -- --config .once.toml doctor
+$ nix run github:closure-labs/once/v0.3.0 -- --config .once.toml doctor
 ```
 
 Tagged releases are also published as public FlakeHub flakes:
 
 ```nix
 {
-  inputs.once.url = "https://flakehub.com/f/closure-labs/once/0.2.*";
+  inputs.once.url = "https://flakehub.com/f/closure-labs/once/0.3.*";
 }
 ```
 
@@ -106,10 +106,11 @@ See [architecture](docs/architecture.md), [threat model](docs/threat-model.md),
 
 ## Status and roadmap
 
-This is a proof of concept. The protected policy flake and reusable GitHub
-Action are available in v0.2. Future work includes durable HTTP/S3/Harmonia
-backends, stricter input-addressed dependency policy, multi-signature
-thresholds, and additional platforms.
+This is a proof of concept. v0.3 adds reproducible Nix 2.35.2/2.36 prerelease
+substitution evidence and deterministic signed `.det` artifacts to the
+protected policy flake and reusable GitHub Action delivered in v0.2. Future
+work includes durable HTTP/S3/Harmonia backends, stricter input-addressed
+dependency policy, multi-signature thresholds, and additional platforms.
 
 Copyright (C) 2026 Closure Labs and Dale Morgan. Licensed under
 [Apache-2.0](LICENSE).
