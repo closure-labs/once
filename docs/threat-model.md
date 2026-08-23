@@ -17,9 +17,11 @@ requests, or placed in public test fixtures.
 ## Candidate-controlled policy
 
 A malicious change can weaken a check or alter its policy version. Repository
-review and protected workflow/configuration files are the v0.1 boundary. A
-future release should source policy from a separately protected flake or
-repository that candidate code cannot redefine.
+pull requests, required CI, and protected workflow/configuration files are the
+v0.1 boundary. CODEOWNERS records responsibility, but approving owner review
+cannot be required until Closure Labs adds a second maintainer. A future release
+should source policy from a separately protected flake or repository that
+candidate code cannot redefine.
 
 ## Nix boundaries
 

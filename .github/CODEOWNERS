@@ -1,5 +1,6 @@
-* @Closure-Labs/maintainers
-/.github/workflows/ @Closure-Labs/maintainers
-/nix/ @Closure-Labs/maintainers
-/.once.toml @Closure-Labs/maintainers
-
+* @declarative-dale
+/.github/workflows/ @declarative-dale
+/nix/ @declarative-dale
+/.once.toml @declarative-dale
+/LICENSE @declarative-dale
+/COPYRIGHT @declarative-dale

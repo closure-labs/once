@@ -34,6 +34,9 @@ jobs:
       - name: Lint
         run: nix develop -c cargo clippy --all-targets --all-features -- -D warnings
 
+      - name: Lint GitHub Actions workflows
+        run: nix develop -c actionlint
+
       - name: Test
         run: nix develop -c cargo test
 

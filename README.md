@@ -1,5 +1,7 @@
 # Once
 
+[![FlakeHub](https://img.shields.io/endpoint?url=https://flakehub.com/f/closure-labs/once/badge)](https://flakehub.com/flake/closure-labs/once)
+
 **Build once. Recognize it thereafter.**
 
 Once is an experimental Closure Labs project for recognizing when an accepted
@@ -25,6 +27,30 @@ $ cargo build
 $ ./target/debug/once doctor
 $ ./scripts/demo.sh
 ```
+
+To install the tagged release into a Nix profile:
+
+```console
+$ nix profile install github:closure-labs/once/v0.1.1
+$ once --config /path/to/.once.toml doctor
+```
+
+To run it without installing, from a checkout containing `.once.toml`:
+
+```console
+$ nix run github:closure-labs/once/v0.1.1 -- --config .once.toml doctor
+```
+
+Tagged releases are also published as public FlakeHub flakes:
+
+```nix
+{
+  inputs.once.url = "https://flakehub.com/f/closure-labs/once/0.1.*";
+}
+```
+
+Starting with v0.1.1, each GitHub release includes an `x86_64-linux` archive
+and SHA-256 checksum.
 
 `once check` never intentionally builds the requested installable. `once run`
 builds only after a `MISS`, then requires the resulting trace to satisfy policy.
@@ -53,7 +79,8 @@ once CLI
 ```
 
 See [architecture](docs/architecture.md), [threat model](docs/threat-model.md),
-[POC demo](docs/poc-demo.md), and the [changelog](CHANGELOG.md) for details.
+[POC demo](docs/poc-demo.md), [governance](docs/governance.md), and the
+[changelog](CHANGELOG.md) for details.
 
 ## Status and roadmap
 
@@ -62,4 +89,5 @@ reusable GitHub Action, durable HTTP/S3/Harmonia backends, stricter
 input-addressed dependency policy, multi-signature thresholds, and additional
 platforms.
 
-Licensed under Apache-2.0.
+Copyright (C) 2026 Closure Labs and Dale Morgan. Licensed under
+[Apache-2.0](LICENSE).
