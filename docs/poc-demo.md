@@ -20,3 +20,14 @@ Temporary keys and stores are removed by the script's exit trap.
 The script first deletes the resolved check derivation because that store object
 references the expensive output. The authoritative base trace has no foreign-key
 reference to either object and remains available afterward.
+
+## Nix version comparison
+
+After building the debug binary, run
+`./scripts/build-trace-version-matrix.sh` to compare the exact pinned Nix
+2.35.2 baseline with the pinned 2.36 prerelease. This separate, heavier proof
+uses loopback HTTP and unrelated signing keys to exercise remote build-trace
+signature enforcement without modifying host trust configuration.
+
+See the [version-matrix proof](planning/nix-2.35-2.36-build-trace-proof.md) for
+the exact pins, security controls, observed results, and limitations.

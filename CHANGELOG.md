@@ -5,6 +5,18 @@ All notable changes to Once are documented in this file. The project follows
 
 ## [Unreleased]
 
+### Added
+
+- Add a full-revision-pinned Nix 2.35.2/2.36 prerelease build-trace matrix
+  using ephemeral keys, isolated stores, loopback HTTP, and accepted- versus
+  unrelated-key substitution controls.
+
+### Security
+
+- Confirm empirically that the pinned 2.36 prerelease rejects an unrelated-key
+  build trace during substitution, while read-only trace inspection remains
+  unverified and Once continues to fail closed as `UNSUPPORTED`.
+
 ## [0.2.0] - 2026-08-23
 
 ### Added

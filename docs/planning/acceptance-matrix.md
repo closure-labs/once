@@ -13,6 +13,6 @@
 | Untrusted and conflicting traces fail closed | Integration and fixture tests | Implemented |
 | Human and JSON CI output | CLI integration tests | Implemented |
 | GitHub Actions demonstration | [successful `main` run](https://github.com/closure-labs/once/actions/runs/32626361066) | Implemented |
-| Remote signature trust without output download | Wrong-key Nix 2.35 probe | Blocked: inspector does not validate signatures |
+| Remote signature trust without output download | [Pinned 2.35.2/2.36 matrix](nix-2.35-2.36-build-trace-proof.md) | Blocked: inspector does not validate signatures |
 
 Statuses are updated only when the corresponding automated evidence exists.
