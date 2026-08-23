@@ -3,6 +3,17 @@
 All notable changes to Once are documented in this file. The project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2026-08-23
+
+### Changed
+
+- Replace the abbreviated license notice with the canonical Apache-2.0 text
+  and record Closure Labs and Dale Morgan as copyright holders.
+- Document installation from a pinned GitHub release.
+- Package tagged releases as checksummed Linux archives and publish their
+  flakes to FlakeHub.
+- Record the successful v0.1.0 acceptance run.
+
 ## [0.1.0] - 2026-08-23
 
 ### Added
@@ -30,3 +41,4 @@ All notable changes to Once are documented in this file. The project follows
   threshold signatures, and additional platforms remain future work.
 
 [0.1.0]: https://github.com/closure-labs/once/releases/tag/v0.1.0
+[0.1.1]: https://github.com/closure-labs/once/compare/v0.1.0...v0.1.1

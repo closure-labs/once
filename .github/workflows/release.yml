@@ -1,0 +1,60 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Package and publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Determinate Nix
+        uses: DeterminateSystems/determinate-nix-action@527f17dd63d2d60d3e5552934bc84b9a33a14d11 # v3.22.2
+
+      - name: Verify tag and package versions
+        shell: bash
+        run: |
+          set -euo pipefail
+          release_version="${GITHUB_REF_NAME#v}"
+          cargo_version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' Cargo.toml | head -n 1)"
+          test "$release_version" = "$cargo_version"
+          grep -F "version = \"$release_version\";" flake.nix
+
+      - name: Build release package
+        run: nix build .#once --print-build-logs
+
+      - name: Create archive and checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          release_version="${GITHUB_REF_NAME#v}"
+          archive="once-${release_version}-x86_64-linux"
+          mkdir -p "dist/$archive/bin"
+          cp -L result/bin/once "dist/$archive/bin/once"
+          cp COPYRIGHT LICENSE README.md "dist/$archive/"
+          tar -C dist -czf "dist/$archive.tar.gz" "$archive"
+          sha256sum "dist/$archive.tar.gz" > "dist/$archive.tar.gz.sha256"
+
+      - name: Upload GitHub release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$GITHUB_REF_NAME" dist/*.tar.gz dist/*.sha256
+
+      - name: Publish tagged flake to FlakeHub
+        uses: DeterminateSystems/flakehub-push@f960928265d16ba43227dfd48812a8b1de17a441 # main 2026-08-23
+        with:
+          name: closure-labs/once
+          repository: closure-labs/once
+          visibility: public
+          tag: ${{ github.event.release.tag_name }}
+          spdx-expression: Apache-2.0

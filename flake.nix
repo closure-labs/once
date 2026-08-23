@@ -12,7 +12,7 @@
       demo = import ./nix/demo.nix { inherit pkgs mkOnceCheck; };
       once = pkgs.rustPlatform.buildRustPackage {
         pname = "once";
-        version = "0.1.0";
+        version = "0.1.1";
         src = pkgs.lib.cleanSource ./.;
         cargoLock.lockFile = ./Cargo.lock;
         meta = {
@@ -44,6 +44,7 @@
 
       devShells.${system}.default = pkgs.mkShell {
         packages = with pkgs; [
+          actionlint
           cargo
           clippy
           jq
