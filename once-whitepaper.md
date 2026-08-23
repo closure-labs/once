@@ -1127,11 +1127,11 @@ When ambiguity exists:
 
 ---
 
-# 23. Future roadmap, not v0.1
+# 23. Future roadmap beyond v0.1
 
 Add to README as future work:
 
-- a separate protected Closure Labs "Once policy" flake/repository so candidate PR code cannot redefine what constitutes a passing Once check;
+- a separate protected Closure Labs "Once policy" flake/repository so candidate PR code cannot redefine what constitutes a passing Once check (implemented for v0.2);
 - reusable GitHub Action;
 - Cachix adapter when native `build-trace-v2` behavior is verified;
 - S3 backend using GitHub OIDC;

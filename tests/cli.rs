@@ -15,7 +15,7 @@ fn fixture() -> (TempDir, std::path::PathBuf, std::path::PathBuf) {
     let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".into());
     let script = format!(
         "#!{shell}\n{}",
-        r#"set -eu
+        r##"set -eu
 args="$*"
 case "$args" in
   "--version")
@@ -26,6 +26,27 @@ case "$args" in
     ;;
   *"build-trace info --help"*)
     exit 0
+    ;;
+  *"flake metadata github:closure-labs/once-policy/"*)
+    revision="${FAKE_NIX_POLICY_REVISION:-0123456789abcdef0123456789abcdef01234567}"
+    echo "{\"revision\":\"$revision\"}"
+    ;;
+  *"build github:closure-labs/once-policy/"*"#policy --no-link --print-out-paths"*)
+    echo '/nix/store/once-policy.toml'
+    ;;
+  *"store cat /nix/store/once-policy.toml"*)
+    cat <<'POLICY'
+schema = 1
+[once]
+policy_version = "protected-v1"
+[nix]
+minimum_version = "2.35.0"
+required_experimental_features = ["nix-command", "flakes", "ca-derivations"]
+[trust]
+required_signatures = 1
+accepted_key_names = ["ci.closurelabs.dev-1"]
+ia_mode = "warn"
+POLICY
     ;;
   *"derivation show"*)
     echo '{"/nix/store/unresolved-check.drv":{}}'
@@ -45,7 +66,7 @@ case "$args" in
     exit 2
     ;;
 esac
-"#,
+"##,
     );
     fs::write(&nix, script).expect("fake Nix executable");
     let mut permissions = fs::metadata(&nix).expect("metadata").permissions();
@@ -75,6 +96,14 @@ fn once(nix: &Path, config: &Path, arguments: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_once"))
         .env("ONCE_NIX_BIN", nix)
         .args(["--config", config.to_str().expect("UTF-8 path")])
+        .args(arguments)
+        .output()
+        .expect("run Once")
+}
+
+fn once_with_external_policy(nix: &Path, arguments: &[&str]) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_once"))
+        .env("ONCE_NIX_BIN", nix)
         .args(arguments)
         .output()
         .expect("run Once")
@@ -119,4 +148,73 @@ fn doctor_reports_suitable_fake_nix() {
     assert!(output.status.success());
     let json: serde_json::Value = serde_json::from_slice(&output.stdout).expect("doctor JSON");
     assert_eq!(json["suitable"], true);
+}
+
+#[test]
+fn check_loads_policy_from_verified_immutable_flake() {
+    const REVISION: &str = "0123456789abcdef0123456789abcdef01234567";
+    let (_directory, nix, _config) = fixture();
+    let reference = format!("github:closure-labs/once-policy/{REVISION}");
+    let output = once_with_external_policy(
+        &nix,
+        &[
+            "--policy-flake",
+            &reference,
+            "--policy-revision",
+            REVISION,
+            "--json",
+            "check",
+            ".#demo",
+        ],
+    );
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let json: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("JSON result envelope");
+    assert_eq!(json["decision"], "ACCEPTED_WITH_IA_TRUST");
+}
+
+#[test]
+fn external_policy_revision_mismatch_fails_closed() {
+    const EXPECTED: &str = "0123456789abcdef0123456789abcdef01234567";
+    const ACTUAL: &str = "89abcdef0123456789abcdef0123456789abcdef";
+    let (_directory, nix, _config) = fixture();
+    let reference = format!("github:closure-labs/once-policy/{EXPECTED}");
+    let output = Command::new(env!("CARGO_BIN_EXE_once"))
+        .env("ONCE_NIX_BIN", nix)
+        .env("FAKE_NIX_POLICY_REVISION", ACTUAL)
+        .args([
+            "--policy-flake",
+            &reference,
+            "--policy-revision",
+            EXPECTED,
+            "check",
+            ".#demo",
+        ])
+        .output()
+        .expect("run Once");
+    assert_eq!(output.status.code(), Some(30));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("expected"));
+}
+
+#[test]
+fn mutable_policy_reference_is_rejected() {
+    const REVISION: &str = "0123456789abcdef0123456789abcdef01234567";
+    let (_directory, nix, _config) = fixture();
+    let output = once_with_external_policy(
+        &nix,
+        &[
+            "--policy-flake",
+            "github:closure-labs/once-policy/main",
+            "--policy-revision",
+            REVISION,
+            "check",
+            ".#demo",
+        ],
+    );
+    assert_eq!(output.status.code(), Some(30));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("same full commit"));
 }

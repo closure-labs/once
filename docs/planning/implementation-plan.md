@@ -26,5 +26,5 @@ The stable decisions are `ACCEPTED_CA`, `ACCEPTED_WITH_IA_TRUST`, `MISS`,
 permit work to be skipped.
 
 The CLI provides `doctor`, `check`, `resolve`, `trace`, `trust`, `explain`, and
-`run`. All commands except `run` are read-only with respect to build outputs.
-
+`run`. All commands except `run` are read-only with respect to requested build
+outputs. Commands may realize a separately pinned, tiny policy text artifact.

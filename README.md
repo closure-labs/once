@@ -7,7 +7,7 @@
 Once is an experimental Closure Labs project for recognizing when an accepted
 realization of the same fully resolved Nix derivation has already occurred. It
 uses Nix 2.35+ native build traces, content-addressed derivations, and a local
-trust policy.
+or immutable external trust policy.
 
 A passing Once check is a policy decision to accept a signed build-trace claim.
 It is not an independently auditable proof that arbitrary computation occurred.
@@ -55,8 +55,23 @@ and SHA-256 checksum.
 `once check` never intentionally builds the requested installable. `once run`
 builds only after a `MISS`, then requires the resulting trace to satisfy policy.
 
+Protected CI can source policy from an immutable external flake instead of
+candidate-controlled `.once.toml`:
+
+```console
+$ once \
+    --policy-flake github:closure-labs/once-policy/$REVISION \
+    --policy-revision "$REVISION" \
+    check .#checks.x86_64-linux.integration
+```
+
+Both arguments require the same full 40-character commit. Branches, tags, and
+abbreviated revisions fail closed. See the
+[protected-policy guide](docs/protected-policy.md) for the trust boundary and
+update flow.
+
 Nix 2.35 does not validate signatures returned by its remote build-trace
-inspection command. Once v0.1 therefore supports skipping from a trusted local
+inspection command. Once therefore supports skipping from a trusted local
 store and reports remote trace hits as `UNSUPPORTED`; it never trusts a signer
 label alone.
 
@@ -79,13 +94,13 @@ once CLI
 ```
 
 See [architecture](docs/architecture.md), [threat model](docs/threat-model.md),
-[POC demo](docs/poc-demo.md), [governance](docs/governance.md), and the
-[changelog](CHANGELOG.md) for details.
+[POC demo](docs/poc-demo.md), [protected policy](docs/protected-policy.md),
+[governance](docs/governance.md), and the [changelog](CHANGELOG.md) for details.
 
 ## Status and roadmap
 
-This is a proof of concept. Future work includes a protected policy flake,
-reusable GitHub Action, durable HTTP/S3/Harmonia backends, stricter
+This is a proof of concept. The protected policy flake is available in v0.2;
+future work includes a reusable GitHub Action, durable HTTP/S3/Harmonia backends, stricter
 input-addressed dependency policy, multi-signature thresholds, and additional
 platforms.
 

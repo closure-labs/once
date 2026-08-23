@@ -5,6 +5,14 @@ All notable changes to Once are documented in this file. The project follows
 
 ## [Unreleased]
 
+### Added
+
+- Load policy from an immutable external GitHub flake, verify its full revision
+  through Nix metadata, and fail closed before target evaluation on any
+  mismatch.
+- Provide a separately publishable policy-flake template and document its
+  protected update and invocation boundaries.
+
 ### Fixed
 
 - Generate release checksum files with portable archive basenames so

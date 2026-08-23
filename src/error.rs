@@ -20,14 +20,16 @@ pub enum OnceError {
         #[source]
         source: std::io::Error,
     },
-    #[error("could not parse configuration {path}: {source}")]
+    #[error("could not parse configuration {origin}: {source}")]
     ParseConfig {
-        path: PathBuf,
+        origin: String,
         #[source]
         source: toml::de::Error,
     },
     #[error("invalid configuration: {0}")]
     InvalidConfig(String),
+    #[error("invalid external policy: {0}")]
+    Policy(String),
     #[error("could not parse JSON from Nix: {source}; output was: {output}")]
     NixJson {
         #[source]

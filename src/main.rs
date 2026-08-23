@@ -25,7 +25,8 @@ fn main() {
             match error {
                 error::OnceError::ReadConfig { .. }
                 | error::OnceError::ParseConfig { .. }
-                | error::OnceError::InvalidConfig(_) => types::ExitCode::MalformedConfig as i32,
+                | error::OnceError::InvalidConfig(_)
+                | error::OnceError::Policy(_) => types::ExitCode::MalformedConfig as i32,
                 _ => types::ExitCode::Internal as i32,
             }
         }

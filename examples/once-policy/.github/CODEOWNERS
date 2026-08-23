@@ -1,0 +1,5 @@
+* @declarative-dale
+/policy.toml @declarative-dale
+/flake.nix @declarative-dale
+/flake.lock @declarative-dale
+/.github/workflows/ @declarative-dale

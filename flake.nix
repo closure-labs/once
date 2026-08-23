@@ -12,7 +12,7 @@
       demo = import ./nix/demo.nix { inherit pkgs mkOnceCheck; };
       once = pkgs.rustPlatform.buildRustPackage {
         pname = "once";
-        version = "0.1.1";
+        version = "0.2.0";
         src = pkgs.lib.cleanSource ./.;
         cargoLock.lockFile = ./Cargo.lock;
         meta = {

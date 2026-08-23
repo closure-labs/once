@@ -13,9 +13,22 @@ use crate::{
 #[derive(Debug, Parser)]
 #[command(name = "once", version, about = "Build once. Recognize it thereafter.")]
 pub struct Cli {
-    /// Path to the Once policy configuration.
-    #[arg(long, global = true, default_value = ".once.toml")]
-    config: PathBuf,
+    /// Path to a local Once policy configuration.
+    #[arg(long, global = true, conflicts_with = "policy_flake")]
+    config: Option<PathBuf>,
+
+    /// Immutable GitHub flake reference that exports packages.<system>.policy.
+    #[arg(
+        long,
+        global = true,
+        requires = "policy_revision",
+        conflicts_with = "config"
+    )]
+    policy_flake: Option<String>,
+
+    /// Expected full Git commit for --policy-flake.
+    #[arg(long, global = true, requires = "policy_flake")]
+    policy_revision: Option<String>,
 
     /// Emit a stable JSON result envelope.
     #[arg(long, global = true)]
@@ -44,8 +57,19 @@ enum Commands {
 }
 
 pub fn execute(cli: Cli) -> Result<i32> {
-    let config = Config::load(&cli.config)?;
     let nix = NixAdapter::default();
+    let config = match (&cli.policy_flake, &cli.policy_revision) {
+        (Some(flake), Some(revision)) => {
+            let source = nix.load_policy(flake, revision)?;
+            Config::parse(&source, &format!("{flake}#policy"))?
+        }
+        (None, None) => Config::load(
+            cli.config
+                .as_deref()
+                .unwrap_or_else(|| std::path::Path::new(".once.toml")),
+        )?,
+        _ => unreachable!("clap enforces external policy arguments"),
+    };
     match cli.command {
         Commands::Doctor => {
             let state = nix.doctor(&config)?;
