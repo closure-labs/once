@@ -28,7 +28,7 @@ jobs:
           release_version="${GITHUB_REF_NAME#v}"
           cargo_version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' Cargo.toml | head -n 1)"
           test "$release_version" = "$cargo_version"
-          grep -F "version = \"$release_version\";" flake.nix
+          grep -F "version = \"$release_version\";" nix/package.nix
 
       - name: Build release package
         run: nix build .#once --print-build-logs

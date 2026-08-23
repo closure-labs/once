@@ -1,7 +1,7 @@
 {
   description = "Once — recognize accepted Nix build-trace realizations";
 
-  inputs.nixpkgs.url = "https://flakehub.com/f/NixOS/nixpkgs/0";
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
 
   outputs =
     { self, nixpkgs }:
@@ -10,22 +10,14 @@
       pkgs = import nixpkgs { inherit system; };
       mkOnceCheck = import ./nix/once.nix;
       demo = import ./nix/demo.nix { inherit pkgs mkOnceCheck; };
-      once = pkgs.rustPlatform.buildRustPackage {
-        pname = "once";
-        version = "0.3.0";
-        src = pkgs.lib.cleanSource ./.;
-        cargoLock.lockFile = ./Cargo.lock;
-        meta = {
-          description = "Recognize accepted Nix build-trace realizations";
-          homepage = "https://github.com/closure-labs/once";
-          license = pkgs.lib.licenses.asl20;
-          mainProgram = "once";
-          platforms = [ system ];
-        };
-      };
+      once = pkgs.callPackage ./nix/package.nix { };
     in
     {
       lib = { inherit mkOnceCheck; };
+
+      overlays.default = final: _previous: {
+        once = final.callPackage ./nix/package.nix { };
+      };
 
       packages.${system} = {
         inherit once;
