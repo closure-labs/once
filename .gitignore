@@ -2,7 +2,10 @@
 /result-*
 /target
 /.direnv
+/.devenv*
 /.env
+/devenv.local.nix
+/devenv.local.yaml
 *.swp
 *.det
 *.det-private.pem

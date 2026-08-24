@@ -6,7 +6,7 @@
 
 rustPlatform.buildRustPackage {
   pname = "once";
-  version = "0.4.1";
+  version = "0.4.2";
 
   src = lib.cleanSource ../.;
   cargoLock.lockFile = ../Cargo.lock;
@@ -17,7 +17,7 @@ rustPlatform.buildRustPackage {
   meta = {
     description = "Recognize accepted Nix build-trace realizations";
     homepage = "https://github.com/closure-labs/once";
-    changelog = "https://github.com/closure-labs/once/blob/v0.4.1/CHANGELOG.md";
+    changelog = "https://github.com/closure-labs/once/blob/v0.4.2/CHANGELOG.md";
     license = lib.licenses.asl20;
     mainProgram = "once";
     platforms = lib.platforms.linux;
