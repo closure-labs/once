@@ -20,7 +20,7 @@ It is not an independently auditable proof that arbitrary computation occurred.
 ## Quick start
 
 Once is distributed as both a conventional Nix package expression and a flake
-package directly from this repository. The current package builds v0.4.1.
+package directly from this repository. The current package builds v0.4.2.
 
 From a repository checkout, build the conventional package expression:
 
@@ -29,24 +29,26 @@ $ nix-build
 $ ./result/bin/once --version
 ```
 
-Or install the tagged flake package into a Nix profile:
+Or install the tagged flake package into a Nix profile. Accepting the flake
+configuration enables the signed `once.cachix.org` binary cache:
 
 ```console
-$ nix profile install github:closure-labs/once/v0.4.1#once
+$ nix profile install --accept-flake-config \
+    github:closure-labs/once/v0.4.2#once
 $ once --config /path/to/.once.toml doctor
 ```
 
 Run the same package without installing it:
 
 ```console
-$ nix run github:closure-labs/once/v0.4.1#once -- \
+$ nix run --accept-flake-config github:closure-labs/once/v0.4.2#once -- \
     --config /path/to/.once.toml doctor
 ```
 
 Build the package into `./result`:
 
 ```console
-$ nix build github:closure-labs/once/v0.4.1#once
+$ nix build --accept-flake-config github:closure-labs/once/v0.4.2#once
 $ ./result/bin/once --version
 ```
 
@@ -54,7 +56,7 @@ Pin a release from this repository as a downstream flake input:
 
 ```nix
 {
-  inputs.once.url = "github:closure-labs/once/v0.4.1";
+  inputs.once.url = "github:closure-labs/once/v0.4.2";
 }
 ```
 
@@ -65,7 +67,7 @@ Use `once.packages.${system}.once` directly, or add
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
-    once.url = "github:closure-labs/once/v0.4.1";
+    once.url = "github:closure-labs/once/v0.4.2";
     once.inputs.nixpkgs.follows = "nixpkgs";
   };
 
@@ -90,16 +92,25 @@ milestone after Once has matured; it is not the current distribution path.
 Starting with v0.1.1, each GitHub release also includes an `x86_64-linux`
 archive and SHA-256 checksum.
 
+The cache declaration is included in v0.4.2 and later. Multi-user Nix
+installations may require an administrator to add the cache URL and public key
+to the daemon configuration; see the Nix package guide.
+
 For source development:
 
 ```console
 $ git clone https://github.com/closure-labs/once.git
 $ cd once
-$ nix develop
+$ nix develop --accept-flake-config
 $ cargo build
 $ ./target/debug/once doctor
 $ ./scripts/demo.sh
 ```
+
+Developers who use devenv can run `devenv shell`; `devenv.nix` provides the
+same toolchain and pulls from the public Once Cachix cache. See the
+[Nix package guide](docs/nix-package.md#binary-cache) for the pinned cache key
+and manual Nix configuration.
 
 `once check` never intentionally builds the requested installable. `once run`
 builds only after a `MISS`, then requires the resulting trace to satisfy policy.

@@ -20,6 +20,15 @@ jobs:
         with:
           extra-conf: |
             experimental-features = nix-command flakes ca-derivations
+            extra-substituters = https://once.cachix.org
+            extra-trusted-public-keys = once.cachix.org-1:UvTATbX24Ign6jp8p/RhF22vwnD/1bHXV3EEg2AMbZY=
+
+      - name: Configure Once Cachix
+        uses: cachix/cachix-action@5f2d7c5294214f71b873db4b969586b980625e71 # v17
+        with:
+          name: once
+          authToken: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && secrets.CACHIX_AUTH_TOKEN || '' }}
+          skipPush: ${{ github.event_name != 'push' || github.ref != 'refs/heads/main' || secrets.CACHIX_AUTH_TOKEN == '' }}
 
       - name: Require Nix 2.35+
         shell: bash

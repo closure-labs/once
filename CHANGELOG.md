@@ -5,6 +5,15 @@ All notable changes to Once are documented in this file. The project follows
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-08-23
+
+### Added
+
+- Configure the signed public `once.cachix.org` substituter for flake users and
+  CI, with protected builds pushing through `CACHIX_AUTH_TOKEN`.
+- Add a devenv environment that mirrors the flake development toolchain and
+  pulls build outputs from the Once Cachix cache without enabling local pushes.
+
 ## [0.4.1] - 2026-08-23
 
 ### Added
@@ -123,4 +132,5 @@ All notable changes to Once are documented in this file. The project follows
 [0.3.0]: https://github.com/closure-labs/once/compare/v0.2.0...v0.3.0
 [0.4.0]: https://github.com/closure-labs/once/compare/v0.3.0...v0.4.0
 [0.4.1]: https://github.com/closure-labs/once/compare/v0.4.0...v0.4.1
-[Unreleased]: https://github.com/closure-labs/once/compare/v0.4.1...HEAD
+[0.4.2]: https://github.com/closure-labs/once/compare/v0.4.1...v0.4.2
+[Unreleased]: https://github.com/closure-labs/once/compare/v0.4.2...HEAD

@@ -10,6 +10,43 @@ The current package supports Linux. Flake commands require the `nix-command`
 and `flakes` experimental features. Once operations additionally require the
 `ca-derivations` feature.
 
+## Binary cache
+
+Once publishes CI build outputs to a public Cachix cache. The repository flake
+declares the cache URL and pins its public signing key. On single-user or
+trusted-user Nix installations, pass `--accept-flake-config` to use it:
+
+```console
+nix build --accept-flake-config github:closure-labs/once/v0.4.2#once
+```
+
+To configure Nix independently of the flake, add these exact lines to a trusted
+Nix configuration:
+
+```ini
+extra-substituters = https://once.cachix.org
+extra-trusted-public-keys = once.cachix.org-1:UvTATbX24Ign6jp8p/RhF22vwnD/1bHXV3EEg2AMbZY=
+```
+
+On a multi-user Nix installation, client-specified substituters are restricted.
+An administrator must add these settings to the daemon's Nix configuration and
+restart or reload the daemon. Do not bypass that trust boundary by broadly
+marking users as trusted solely to enable this cache.
+
+The public key authenticates downloaded store paths; the Cachix write token is
+used only by protected `main` and release builds. Pull-request jobs are
+read-only and do not receive the token. Users and local developers do not need
+it.
+
+This cache declaration is included in v0.4.2 and later. Pin a tagged release or
+the resolved repository revision in `flake.lock` when consuming Once from
+another flake.
+
+The repository also includes a devenv configuration with `cachix.pull =
+[ "once" ]`. Run `devenv shell` to enter the same development toolchain as the
+flake shell while pulling available paths from the Once cache. Local devenv
+configuration does not push to Cachix.
+
 ## Build the conventional Nix package
 
 The repository's `default.nix` pins its own community Nixpkgs revision and
@@ -49,21 +86,22 @@ revision aligned with `flake.lock`.
 Install Once into the current user's Nix profile:
 
 ```console
-nix profile install github:closure-labs/once/v0.4.1#once
+nix profile install --accept-flake-config \
+  github:closure-labs/once/v0.4.2#once
 once --version
 ```
 
 Run it without installing:
 
 ```console
-nix run github:closure-labs/once/v0.4.1#once -- \
+nix run --accept-flake-config github:closure-labs/once/v0.4.2#once -- \
   --config /path/to/.once.toml doctor
 ```
 
 Build it into the local `result` symlink:
 
 ```console
-nix build github:closure-labs/once/v0.4.1#once
+nix build --accept-flake-config github:closure-labs/once/v0.4.2#once
 ./result/bin/once --version
 ```
 
@@ -79,7 +117,7 @@ package set:
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
-    once.url = "github:closure-labs/once/v0.4.1";
+    once.url = "github:closure-labs/once/v0.4.2";
     once.inputs.nixpkgs.follows = "nixpkgs";
   };
 
@@ -101,7 +139,7 @@ existing Nixpkgs package set:
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
-    once.url = "github:closure-labs/once/v0.4.1";
+    once.url = "github:closure-labs/once/v0.4.2";
     once.inputs.nixpkgs.follows = "nixpkgs";
   };
 
@@ -126,7 +164,7 @@ Apply the overlay and add `pkgs.once` to `environment.systemPackages`:
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    once.url = "github:closure-labs/once/v0.4.1";
+    once.url = "github:closure-labs/once/v0.4.2";
     once.inputs.nixpkgs.follows = "nixpkgs";
   };
 
