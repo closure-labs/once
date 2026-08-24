@@ -159,9 +159,10 @@ once CLI
   └── reporter ──> terminal, JSON, and GitHub summary
 ```
 
-See [architecture](docs/architecture.md), [threat model](docs/threat-model.md),
+See [architecture](docs/architecture.md), [security boundaries](docs/threat-model.md),
 [POC demo](docs/poc-demo.md), [protected policy](docs/protected-policy.md),
 [diagnostic commands](docs/diagnostic-commands.md), [GitHub Action](docs/github-action.md),
+[xo-nixpkg integration example](docs/examples/xo-nixpkg.md),
 [governance](docs/governance.md), and the [changelog](CHANGELOG.md) for details.
 
 ## Status and roadmap
