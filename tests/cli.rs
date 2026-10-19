@@ -22,10 +22,11 @@ if [ -n "${FAKE_NIX_LOG:-}" ]; then
 fi
 case "$args" in
   "--version")
-    echo 'nix (Nix) 2.35.2'
+    echo "${FAKE_NIX_VERSION:-nix (Nix) 2.35.2}"
     ;;
   "config show --json")
-    echo "{\"store\":{\"value\":\"${FAKE_NIX_STORE:-local}\"},\"experimental-features\":{\"value\":[\"nix-command\",\"flakes\",\"ca-derivations\"]}}"
+    features=${FAKE_NIX_FEATURES_JSON:-'["nix-command","flakes","ca-derivations"]'}
+    printf '{"store":{"value":"%s"},"experimental-features":{"value":%s}}\n' "${FAKE_NIX_STORE:-local}" "$features"
     ;;
   *"build-trace info --help"*)
     exit 0
@@ -554,4 +555,29 @@ fn doctor_checks_all_policy_required_features() {
     let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(json["suitable"], false);
     assert_eq!(json["backend"]["store"], "local");
+}
+
+#[test]
+fn determinate_stable_features_need_no_experimental_opt_in() {
+    let (_directory, nix, config) = fixture();
+    for (banner, features, suitable) in [
+        (
+            "nix (Determinate Nix 3.23.3) 2.35.3",
+            r#"["ca-derivations"]"#,
+            true,
+        ),
+        ("nix (Determinate Nix 3.23.3) 2.35.3", "[]", false),
+        ("nix (Nix) 2.35.3", r#"["ca-derivations"]"#, false),
+    ] {
+        let output = Command::new(env!("CARGO_BIN_EXE_once"))
+            .env("ONCE_NIX_BIN", &nix)
+            .env("FAKE_NIX_VERSION", banner)
+            .env("FAKE_NIX_FEATURES_JSON", features)
+            .args(["--config", config.to_str().unwrap(), "--json", "doctor"])
+            .output()
+            .unwrap();
+        let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(report["suitable"], suitable, "{banner}: {report}");
+        assert_eq!(output.status.code(), Some(if suitable { 0 } else { 20 }));
+    }
 }

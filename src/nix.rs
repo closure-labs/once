@@ -119,7 +119,14 @@ impl NixAdapter {
     }
 
     pub fn doctor(&self, config: &Config) -> Result<DoctorState> {
-        let version = self.version()?;
+        let banner = self.run_raw(["--version"])?;
+        if !banner.success {
+            return Err(self.failed(banner));
+        }
+        let version = parse_nix_version(banner.stdout.trim())?;
+        // Determinate Nix 3 makes these features stable: they no longer appear
+        // in experimental-features even when available. CA remains experimental.
+        let stable_flakes = banner.stdout.contains("(Determinate Nix 3.");
         let help = self.run_nix(["store", "build-trace", "info", "--help"])?;
         let configured = self.configured_features()?;
         Ok(DoctorState {
@@ -128,11 +135,12 @@ impl NixAdapter {
             build_trace_command: help.success,
             ca_derivations_configured: configured.iter().any(|f| f == "ca-derivations"),
             required_features: config.nix.required_experimental_features.clone(),
-            required_features_configured: config
-                .nix
-                .required_experimental_features
-                .iter()
-                .all(|feature| configured.contains(feature)),
+            required_features_configured: config.nix.required_experimental_features.iter().all(
+                |feature| {
+                    configured.contains(feature)
+                        || stable_flakes && matches!(feature.as_str(), "nix-command" | "flakes")
+                },
+            ),
             backend: BackendDescription {
                 store: Some(self.effective_store()?),
                 ..self.backend.describe()
