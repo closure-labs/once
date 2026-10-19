@@ -21,6 +21,7 @@ pub fn evaluate(
     evaluation: Evaluation,
     query: TraceQuery,
 ) -> PolicyResult {
+    let output_name = evaluation.output_name.clone();
     let mut report = empty_report(installable, nix_version, evaluation);
     let exit_code = match query {
         TraceQuery::Miss(diagnostic) => {
@@ -43,7 +44,7 @@ pub fn evaluate(
             ExitCode::Internal
         }
         TraceQuery::Found { records, evidence } => {
-            classify_found(config, &mut report, records, evidence)
+            classify_found(config, &mut report, records, evidence, &output_name)
         }
     };
     PolicyResult { report, exit_code }
@@ -52,9 +53,26 @@ pub fn evaluate(
 fn classify_found(
     config: &Config,
     report: &mut ResultEnvelope,
-    records: crate::trace::TraceRecords,
+    mut records: crate::trace::TraceRecords,
     evidence: TrustEvidence,
+    output_name: &str,
 ) -> ExitCode {
+    // Full key material also strengthens local mode. Legacy schema-1 policies
+    // without keys retain their explicit trusted-local-store boundary.
+    if evidence == TrustEvidence::LocalStore && !config.trust.public_keys.is_empty() {
+        for entry in &mut records.entries {
+            match crate::verification::verify(entry, &config.trust) {
+                Ok(verified) => *entry = verified,
+                Err(message) => {
+                    report.decision = Decision::Untrusted;
+                    report.trace.status = "untrusted".into();
+                    report.diagnostics.push(message);
+                    return ExitCode::Untrusted;
+                }
+            }
+        }
+        report.trace.verification = Some("native-ed25519");
+    }
     if records.entries.is_empty() {
         report.decision = Decision::Miss;
         report.action = Action::Build;
@@ -88,7 +106,17 @@ fn classify_found(
         return ExitCode::Unsupported;
     }
 
-    let entry = records.entries.last().expect("non-empty trace records");
+    let Some(entry) = records.target_entry(output_name) else {
+        report.decision = Decision::Unsupported;
+        report.trace.status = "ambiguous".into();
+        report
+            .diagnostics
+            .push("trace does not identify exactly one requested output".into());
+        return ExitCode::Unsupported;
+    };
+    if evidence == TrustEvidence::VerifiedNative {
+        report.trace.verification = Some("native-ed25519");
+    }
     report.derivation.resolved = Some(normalize_store_path(&entry.key.drv_path));
     report.derivation.output_name = Some(entry.key.output_name.clone());
     report.trace.out_path = Some(normalize_store_path(&entry.value.out_path));
@@ -180,6 +208,8 @@ fn empty_report(
             out_path: None,
             signers: Vec::new(),
             signature_count: 0,
+            verification: None,
+            bundle_id: None,
         },
         inputs: InputSummary::default(),
         diagnostics: Vec::new(),
@@ -209,6 +239,7 @@ mod tests {
             trust: TrustConfig {
                 required_signatures: 1,
                 accepted_key_names: vec!["ci-1".into()],
+                public_keys: vec![],
                 ia_mode: mode,
             },
             reporting: ReportingConfig::default(),
@@ -311,6 +342,43 @@ mod tests {
         );
         assert_eq!(result.report.decision, Decision::Conflict);
         assert_eq!(result.exit_code, ExitCode::Conflict);
+    }
+
+    #[test]
+    fn full_keys_require_real_signatures_in_local_mode_too() {
+        let vectors: serde_json::Value =
+            serde_json::from_str(include_str!("../tests/fixtures/native-vectors.json")).unwrap();
+        let mut config = config(IaMode::Warn);
+        config.trust.accepted_key_names = vec!["once-native-1".into()];
+        config.trust.public_keys = vec![vectors["publicKey"].as_str().unwrap().into()];
+        let entry: TraceEntry = serde_json::from_value(vectors["entries"][0].clone()).unwrap();
+        let query = |entry| TraceQuery::Found {
+            records: TraceRecords {
+                entries: vec![entry],
+                opaque_paths: vec![],
+            },
+            evidence: TrustEvidence::LocalStore,
+        };
+        let accepted = evaluate(
+            &config,
+            ".#demo",
+            None,
+            Evaluation::default(),
+            query(entry.clone()),
+        );
+        assert_eq!(accepted.exit_code, ExitCode::Accepted);
+        assert_eq!(accepted.report.trace.verification, Some("native-ed25519"));
+        let mut forged = entry;
+        forged.value.signatures[0].sig = "AA==".into();
+        let rejected = evaluate(
+            &config,
+            ".#demo",
+            None,
+            Evaluation::default(),
+            query(forged),
+        );
+        assert_eq!(rejected.exit_code, ExitCode::Untrusted);
+        assert_eq!(rejected.report.action, Action::Fail);
     }
 
     #[test]

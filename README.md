@@ -13,14 +13,14 @@ It is not an independently auditable proof that arbitrary computation occurred.
 ## Requirements
 
 - x86_64 Linux
-- upstream Nix 2.35 or later
+- Nix 2.35+ for local mode; exactly 2.35.3 for portable bundles (including Determinate Nix 3.23.3)
 - `nix-command`, `flakes`, and `ca-derivations`
 - stable Rust for source development, provided by `nix develop`
 
 ## Quick start
 
 Once is distributed as both a conventional Nix package expression and a flake
-package directly from this repository. The current package builds v0.4.2.
+package directly from this repository. The current package builds v0.5.0.
 
 From a repository checkout, build the conventional package expression:
 
@@ -34,21 +34,21 @@ configuration enables the signed `once.cachix.org` binary cache:
 
 ```console
 $ nix profile install --accept-flake-config \
-    github:closure-labs/once/v0.4.2#once
+    github:closure-labs/once/v0.5.0#once
 $ once --config /path/to/.once.toml doctor
 ```
 
 Run the same package without installing it:
 
 ```console
-$ nix run --accept-flake-config github:closure-labs/once/v0.4.2#once -- \
+$ nix run --accept-flake-config github:closure-labs/once/v0.5.0#once -- \
     --config /path/to/.once.toml doctor
 ```
 
 Build the package into `./result`:
 
 ```console
-$ nix build --accept-flake-config github:closure-labs/once/v0.4.2#once
+$ nix build --accept-flake-config github:closure-labs/once/v0.5.0#once
 $ ./result/bin/once --version
 ```
 
@@ -56,7 +56,7 @@ Pin a release from this repository as a downstream flake input:
 
 ```nix
 {
-  inputs.once.url = "github:closure-labs/once/v0.4.2";
+  inputs.once.url = "github:closure-labs/once/v0.5.0";
 }
 ```
 
@@ -67,7 +67,7 @@ Use `once.packages.${system}.once` directly, or add
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
-    once.url = "github:closure-labs/once/v0.4.2";
+    once.url = "github:closure-labs/once/v0.5.0";
     once.inputs.nixpkgs.follows = "nixpkgs";
   };
 
@@ -131,9 +131,26 @@ abbreviated revisions fail closed. See the
 update flow.
 
 Nix 2.35 does not validate signatures returned by its remote build-trace
-inspection command. Once therefore supports skipping from a trusted local
-store and reports remote trace hits as `UNSUPPORTED`; it never trusts a signer
-label alone. See the [v0.2 upstream trust audit](docs/planning/remote-trust-audit.md)
+inspection command. Direct remote trace hits remain `UNSUPPORTED`. The v0.5
+portable bundle path verifies native Ed25519 signatures in Once before allowing
+Nix to resolve the current check against those claims. It requires Nix 2.35.3,
+full public keys in protected policy, and a content-addressed check with a
+matching embedded `policyVersion`; signer labels alone never authorize reuse.
+
+```console
+# After the protected producer has built and signed the check:
+once --config producer-policy.toml export .#checks.x86_64-linux.integration --output bundle
+# On a fresh consumer, without the producer's output artifacts:
+once --config consumer-policy.toml --json check .#checks.x86_64-linux.integration --trace-bundle bundle
+```
+
+The [portable GitHub Action guide](docs/github-action.md) includes producer and
+consumer workflows using GitHub artifacts, with no external cache service.
+Missing or expired evidence causes a miss; invalid evidence fails closed.
+Use `once bundle-key INSTALLABLE` with the same protected policy to compute an
+artifact lookup name. Artifact names are hints; native signatures authorize reuse.
+
+ See the [v0.2 upstream trust audit](docs/planning/remote-trust-audit.md)
 for the audited interfaces and reopening criteria. A reproducible
 [2.35.2/2.36 prerelease proof](docs/planning/nix-2.35-2.36-build-trace-proof.md)
 demonstrates the newer internal substitution check while confirming that the
@@ -167,7 +184,8 @@ See [architecture](docs/architecture.md), [security boundaries](docs/threat-mode
 
 ## Status and roadmap
 
-This is a proof of concept. v0.4 provides a repository-hosted Nix package and
+This is experimental software. v0.5 adds portable signed trace bundles and
+GitHub artifact transport for Linux CI checks. v0.4 provides a repository-hosted Nix package and
 Nixpkgs-compatible overlay on top of the substitution evidence, deterministic
 signed `.det` artifacts, protected policy flake, and reusable GitHub Action
 delivered in earlier releases. Future work includes durable HTTP/S3/Harmonia

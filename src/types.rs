@@ -104,6 +104,10 @@ pub struct TraceSummary {
     pub out_path: Option<String>,
     pub signers: Vec<String>,
     pub signature_count: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub verification: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bundle_id: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]

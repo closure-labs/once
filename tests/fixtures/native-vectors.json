@@ -1,0 +1,37 @@
+{
+  "schema": "dev.closurelabs.once/native-vectors/v1",
+  "nixVersion": "nix (Determinate Nix 3.23.3) 2.35.3",
+  "publicKey": "once-native-1:V9AgV8UXm4ORvSQ5sINJcPimyfD6HMLat0SMxUhS6ME=",
+  "entries": [
+    {
+      "key": {
+        "drvPath": "80s17rklbaympyr2fqcwjdid1isf7xj2-once-native-dependency.drv",
+        "outputName": "out"
+      },
+      "value": {
+        "outPath": "a4qr4iyxz98chn365xmpl93ppzibgcg7-once-native-dependency",
+        "signatures": [
+          {
+            "keyName": "once-native-1",
+            "sig": "FXFAbzAsTetCjkG+PTTKLjlBoB6tayFE4OIgLEgx3wcnQoHAl0buVVIRZf8UbsgvgMZBfLWwHWKXw/DCMakPDg=="
+          }
+        ]
+      }
+    },
+    {
+      "key": {
+        "drvPath": "99vvqrfykymxi5y6qx1av52jx6i83fxg-once-native-check.drv",
+        "outputName": "out"
+      },
+      "value": {
+        "outPath": "clamfsd11kcfhkwyqi7zp2bhpq1nra88-once-native-check",
+        "signatures": [
+          {
+            "keyName": "once-native-1",
+            "sig": "km0nJsSfJCjGRwmm/5qRorwdAqMafjolb8sfbt1p8L6Q5H8jGmvkzeaVVMa6zMVTNVzncvfTf5OxzmgTDX2FBA=="
+          }
+        ]
+      }
+    }
+  ]
+}

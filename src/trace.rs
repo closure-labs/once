@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct Signature {
     pub key_name: String,
     pub sig: String,
@@ -9,6 +10,7 @@ pub struct Signature {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct TraceKey {
     pub drv_path: String,
     pub output_name: String,
@@ -16,6 +18,7 @@ pub struct TraceKey {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct TraceValue {
     pub out_path: String,
     #[serde(default)]
@@ -23,6 +26,7 @@ pub struct TraceValue {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct TraceEntry {
     pub key: TraceKey,
     pub value: TraceValue,
@@ -45,6 +49,27 @@ pub struct TraceRecords {
 }
 
 impl TraceRecords {
+    /// Native info returns dependency claims plus the selected root opaque path.
+    /// Select by identity, never by the order of the returned records.
+    pub fn target_entry(&self, output_name: &str) -> Option<&TraceEntry> {
+        let mut candidates = self.entries.iter().filter(|entry| {
+            entry.key.output_name == output_name
+                && (self.opaque_paths.is_empty()
+                    || self.opaque_paths.iter().any(|path| {
+                        normalize_store_path(path) == normalize_store_path(&entry.value.out_path)
+                    }))
+        });
+        let first = candidates.next()?;
+        if candidates.any(|entry| {
+            normalize_store_path(&entry.key.drv_path) != normalize_store_path(&first.key.drv_path)
+                || normalize_store_path(&entry.value.out_path)
+                    != normalize_store_path(&first.value.out_path)
+        }) {
+            return None;
+        }
+        Some(first)
+    }
+
     pub fn parse(source: &str) -> Result<Self, serde_json::Error> {
         let raw: Vec<RawTraceRecord> = serde_json::from_str(source)?;
         let mut records = Self::default();

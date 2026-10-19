@@ -1,8 +1,9 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use clap::{Parser, Subcommand};
 
 use crate::{
+    bundle,
     config::Config,
     error::Result,
     nix::NixAdapter,
@@ -44,7 +45,20 @@ enum Commands {
     /// Diagnose Nix and policy prerequisites.
     Doctor,
     /// Evaluate whether work may be skipped.
-    Check { installable: String },
+    Check {
+        installable: String,
+        /// Directory containing a native signed trace bundle.
+        #[arg(long)]
+        trace_bundle: Option<PathBuf>,
+    },
+    /// Export native signed claims without exporting output artifacts.
+    Export {
+        installable: String,
+        #[arg(long)]
+        output: PathBuf,
+    },
+    /// Print the stable artifact lookup name for a portable check.
+    BundleKey { installable: String },
     /// Show derivation resolution state without building.
     Resolve { installable: String },
     /// Show the native build trace without building.
@@ -83,8 +97,32 @@ pub fn execute(cli: Cli) -> Result<i32> {
             })
         }
         Commands::Run { installable } => run(&nix, &config, &installable, cli.json),
-        Commands::Check { installable } => {
-            inspect(&nix, &config, &installable, InspectionView::Check, cli.json)
+        Commands::Check {
+            installable,
+            trace_bundle,
+        } => inspect(
+            &nix,
+            &config,
+            &installable,
+            InspectionView::Check,
+            cli.json,
+            trace_bundle.as_deref(),
+        ),
+        Commands::Export {
+            installable,
+            output,
+        } => {
+            ensure_portable_version(&nix, &config)?;
+            bundle::export(&nix, &config, &installable, &output)?;
+            Ok(ExitCode::Accepted as i32)
+        }
+        Commands::BundleKey { installable } => {
+            ensure_portable_version(&nix, &config)?;
+            println!(
+                "{}",
+                bundle::artifact_key(&nix.evaluate(&installable)?, &config)?
+            );
+            Ok(ExitCode::Accepted as i32)
         }
         Commands::Resolve { installable } => inspect(
             &nix,
@@ -92,19 +130,31 @@ pub fn execute(cli: Cli) -> Result<i32> {
             &installable,
             InspectionView::Resolve,
             cli.json,
+            None,
         ),
-        Commands::Trace { installable } => {
-            inspect(&nix, &config, &installable, InspectionView::Trace, cli.json)
-        }
-        Commands::Trust { installable } => {
-            inspect(&nix, &config, &installable, InspectionView::Trust, cli.json)
-        }
+        Commands::Trace { installable } => inspect(
+            &nix,
+            &config,
+            &installable,
+            InspectionView::Trace,
+            cli.json,
+            None,
+        ),
+        Commands::Trust { installable } => inspect(
+            &nix,
+            &config,
+            &installable,
+            InspectionView::Trust,
+            cli.json,
+            None,
+        ),
         Commands::Explain { installable } => inspect(
             &nix,
             &config,
             &installable,
             InspectionView::Explain,
             cli.json,
+            None,
         ),
     }
 }
@@ -115,6 +165,7 @@ fn inspect(
     installable: &str,
     view: InspectionView,
     json: bool,
+    trace_bundle: Option<&Path>,
 ) -> Result<i32> {
     let version = nix.version()?;
     if version < config.nix.minimum_version {
@@ -137,14 +188,26 @@ fn inspect(
     }
 
     let evaluation = nix.evaluate(installable)?;
-    let query = nix.trace(installable)?;
-    let result = policy::evaluate(
+    let (query, bundle_id) = if let Some(path) = trace_bundle {
+        ensure_portable_version(nix, config)?;
+        match bundle::check(nix, config, installable, &evaluation, path) {
+            Ok(result) => result,
+            Err(crate::error::OnceError::Verification(message)) => {
+                (crate::nix::TraceQuery::Untrusted(message), None)
+            }
+            Err(error) => return Err(error),
+        }
+    } else {
+        (nix.trace(installable)?, None)
+    };
+    let mut result = policy::evaluate(
         config,
         installable,
         Some(version.to_string()),
         evaluation,
         query.clone(),
     );
+    result.report.trace.bundle_id = bundle_id;
     report::inspection(&result.report, &query, config, view, json)?;
     report::github_summary(&result.report, config.reporting.github_summary)?;
     Ok(result.exit_code as i32)
@@ -197,4 +260,14 @@ fn run(nix: &NixAdapter, config: &Config, installable: &str, json: bool) -> Resu
     report::result(&result.report, json)?;
     report::github_summary(&result.report, config.reporting.github_summary)?;
     Ok(result.exit_code as i32)
+}
+
+fn ensure_portable_version(nix: &NixAdapter, config: &Config) -> Result<()> {
+    let version = nix.version()?;
+    if version < config.nix.minimum_version || version != semver::Version::new(2, 35, 3) {
+        return Err(crate::error::OnceError::Unsupported(format!(
+            "portable trace format is verified only with Nix 2.35.3 (found {version})"
+        )));
+    }
+    Ok(())
 }

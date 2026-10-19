@@ -1,13 +1,19 @@
 {
-  "schema": "dev.closurelabs.once/doctor/v1",
-  "nixVersion": "2.35.2",
-  "minimumVersion": "2.35.0",
-  "buildTraceCommand": true,
-  "caDerivationsConfigured": true,
-  "requiredFeatures": ["nix-command", "flakes", "ca-derivations"],
   "backend": {
     "kind": "nix-environment",
-    "store": null
+    "store": "local"
   },
+  "buildTraceCommand": true,
+  "caDerivationsConfigured": true,
+  "minimumVersion": "2.35.0",
+  "nativeTraceVerification": false,
+  "nixVersion": "2.35.2",
+  "requiredFeatures": [
+    "nix-command",
+    "flakes",
+    "ca-derivations"
+  ],
+  "requiredFeaturesConfigured": true,
+  "schema": "dev.closurelabs.once/doctor/v1",
   "suitable": true
 }

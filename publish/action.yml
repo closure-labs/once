@@ -1,0 +1,39 @@
+name: Publish Once trace bundle
+description: Export signed native trace evidence after a successful protected branch build.
+inputs:
+  installable:
+    description: Check already built and signed by the protected producer.
+    required: true
+  policy-flake:
+    description: Immutable github:OWNER/REPO/COMMIT policy flake reference.
+    required: true
+  policy-revision:
+    description: Full 40-character commit expected from policy flake metadata.
+    required: true
+  producer-branch:
+    description: Protected branch permitted to publish signed bundles.
+    required: false
+    default: main
+outputs:
+  bundle-id:
+    description: Stable bundle artifact name.
+    value: ${{ steps.export.outputs.bundle-id }}
+runs:
+  using: composite
+  steps:
+    - name: Export signed bundle
+      id: export
+      shell: bash
+      env:
+        ONCE_ACTION_INSTALLABLE: ${{ inputs.installable }}
+        ONCE_ACTION_POLICY_FLAKE: ${{ inputs.policy-flake }}
+        ONCE_ACTION_POLICY_REVISION: ${{ inputs.policy-revision }}
+        ONCE_ACTION_PRODUCER_BRANCH: ${{ inputs.producer-branch }}
+      run: bash "$GITHUB_ACTION_PATH/../scripts/github-publish.sh"
+    - name: Upload signed trace bundle
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      with:
+        name: ${{ steps.export.outputs.bundle-id }}
+        path: ${{ steps.export.outputs.bundle-directory }}
+        retention-days: 30
+        if-no-files-found: error

@@ -1,0 +1,67 @@
+# Copy to .github/workflows/once-producer.yml; replace the Once and policy pins.
+name: Once producer
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  checks:
+    if: github.ref_protected
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: DeterminateSystems/determinate-nix-action@96c5ee93a9dddf2830d31e1da6ec719077336c28 # v3.23.3
+        with:
+          extra-conf: |
+            experimental-features = nix-command flakes ca-derivations
+      - name: Find an accepted realization
+        id: once
+        uses: closure-labs/once@REPLACE_WITH_ONCE_COMMIT
+        with:
+          command: check
+          installable: .#checks.x86_64-linux.integration
+          policy-flake: github:YOUR_ORG/once-policy/REPLACE_WITH_POLICY_COMMIT
+          policy-revision: REPLACE_WITH_POLICY_COMMIT
+          install-nix: "false"
+          producer-workflow: once-producer.yml
+          producer-branch: main
+          fail-on-nonzero: "false"
+      - name: Fail on invalid evidence or configuration
+        if: steps.once.outputs.cache-hit != 'true' && (steps.once.outputs.decision != 'MISS' || steps.once.outputs.exit-code != '10')
+        env:
+          ONCE_DECISION: ${{ steps.once.outputs.decision }}
+          ONCE_EXIT_CODE: ${{ steps.once.outputs.exit-code }}
+        run: |
+          printf 'Once rejected evidence: %s (exit %s)\n' "$ONCE_DECISION" "$ONCE_EXIT_CODE" >&2
+          exit 1
+      - name: Build and sign the protected check
+        if: steps.once.outputs.decision == 'MISS' && steps.once.outputs.exit-code == '10'
+        shell: bash
+        env:
+          ONCE_SIGNING_KEY: ${{ secrets.ONCE_SIGNING_KEY }}
+          ONCE_INSTALLABLE: .#checks.x86_64-linux.integration
+        run: |
+          set -euo pipefail
+          test -n "$ONCE_SIGNING_KEY"
+          key_file=$(mktemp "$RUNNER_TEMP/once-signing-key.XXXXXXXX")
+          trap 'rm -f "$key_file"' EXIT
+          chmod 600 "$key_file"
+          printf '%s\n' "$ONCE_SIGNING_KEY" > "$key_file"
+          # Root's local store signs native trace entries as they are registered.
+          # The consumer never receives this key or executes this step.
+          sudo nix --store local \
+            --extra-experimental-features 'nix-command flakes ca-derivations' \
+            --option secret-key-files "$key_file" \
+            build "$ONCE_INSTALLABLE" --no-link --no-write-lock-file
+      - name: Export and publish evidence
+        if: steps.once.outputs.decision == 'MISS' && steps.once.outputs.exit-code == '10'
+        uses: closure-labs/once/publish@REPLACE_WITH_ONCE_COMMIT
+        with:
+          installable: .#checks.x86_64-linux.integration
+          policy-flake: github:YOUR_ORG/once-policy/REPLACE_WITH_POLICY_COMMIT
+          policy-revision: REPLACE_WITH_POLICY_COMMIT
+          producer-branch: main

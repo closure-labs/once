@@ -5,6 +5,44 @@ All notable changes to Once are documented in this file. The project follows
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-19
+
+### Added
+
+- Verify native Nix Ed25519 build-trace signatures against full public keys in
+  immutable policies, preserving existing schema-1 local policy compatibility.
+- Export portable signed evidence with `once export`, inspect it with
+  `once check --trace-bundle`, and compute stable artifact names with
+  `once bundle-key`.
+- Provide protected-branch publishing and read-only GitHub artifact lookup,
+  acceptance outputs, and complete producer/consumer workflow examples.
+- Add fresh-store native bundle acceptance, tampering and invalidation tests,
+  plus bounded archive transport and producer metadata-filter tests.
+
+### Changed
+
+- Pin Action, CI and release installs to Determinate Nix 3.23.3 and assert its
+  upstream Nix 2.35.3 version; the installer input remains enabled by default.
+- Bootstrap the Action's own locked Once source with an explicit signed public
+  cache configuration; source builds remain the fallback when unavailable.
+- Extend doctor output with effective store and verification capabilities.
+
+### Security
+
+- Resolve effective stores from explicit overrides, inherited `NIX_REMOTE`
+  and Nix configuration before assigning local trust.
+- Reject import-from-derivation during target inspection, require locked
+  evaluation, and select native records by exact derivation/output identity.
+- Verify every portable claim used by Nix resolution before exposing its
+  mapping; missing dependency evidence cannot borrow local trace state.
+- Keep signing credentials confined to protected producer builds. Invalid
+  signatures, conflicting mappings and transport failures never count as hits.
+
+Portable reuse initially targets static content-addressed checks on
+`x86_64-linux` with one accepted signature and explicitly disclosed IA dependency
+trust. Full GitHub producer/consumer validation and an end-to-end cold/warm
+workflow benchmark remain release adoption gates.
+
 ## [0.4.2] - 2026-08-23
 
 ### Added
@@ -133,4 +171,5 @@ All notable changes to Once are documented in this file. The project follows
 [0.4.0]: https://github.com/closure-labs/once/compare/v0.3.0...v0.4.0
 [0.4.1]: https://github.com/closure-labs/once/compare/v0.4.0...v0.4.1
 [0.4.2]: https://github.com/closure-labs/once/compare/v0.4.1...v0.4.2
-[Unreleased]: https://github.com/closure-labs/once/compare/v0.4.2...HEAD
+[0.5.0]: https://github.com/closure-labs/once/compare/v0.4.2...v0.5.0
+[Unreleased]: https://github.com/closure-labs/once/compare/v0.5.0...HEAD
