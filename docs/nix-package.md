@@ -17,7 +17,7 @@ declares the cache URL and pins its public signing key. On single-user or
 trusted-user Nix installations, pass `--accept-flake-config` to use it:
 
 ```console
-nix build --accept-flake-config github:closure-labs/once/v0.4.2#once
+nix build --accept-flake-config github:closure-labs/once/v0.5.0#once
 ```
 
 To configure Nix independently of the flake, add these exact lines to a trusted
@@ -87,21 +87,21 @@ Install Once into the current user's Nix profile:
 
 ```console
 nix profile install --accept-flake-config \
-  github:closure-labs/once/v0.4.2#once
+  github:closure-labs/once/v0.5.0#once
 once --version
 ```
 
 Run it without installing:
 
 ```console
-nix run --accept-flake-config github:closure-labs/once/v0.4.2#once -- \
+nix run --accept-flake-config github:closure-labs/once/v0.5.0#once -- \
   --config /path/to/.once.toml doctor
 ```
 
 Build it into the local `result` symlink:
 
 ```console
-nix build --accept-flake-config github:closure-labs/once/v0.4.2#once
+nix build --accept-flake-config github:closure-labs/once/v0.5.0#once
 ./result/bin/once --version
 ```
 
@@ -117,7 +117,7 @@ package set:
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
-    once.url = "github:closure-labs/once/v0.4.2";
+    once.url = "github:closure-labs/once/v0.5.0";
     once.inputs.nixpkgs.follows = "nixpkgs";
   };
 
@@ -139,7 +139,7 @@ existing Nixpkgs package set:
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
-    once.url = "github:closure-labs/once/v0.4.2";
+    once.url = "github:closure-labs/once/v0.5.0";
     once.inputs.nixpkgs.follows = "nixpkgs";
   };
 
@@ -164,7 +164,7 @@ Apply the overlay and add `pkgs.once` to `environment.systemPackages`:
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    once.url = "github:closure-labs/once/v0.4.2";
+    once.url = "github:closure-labs/once/v0.5.0";
     once.inputs.nixpkgs.follows = "nixpkgs";
   };
 

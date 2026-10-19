@@ -25,7 +25,7 @@ case "$args" in
     echo 'nix (Nix) 2.35.2'
     ;;
   "config show --json")
-    echo '{"experimental-features":{"value":["nix-command","flakes","ca-derivations"]}}'
+    echo "{\"store\":{\"value\":\"${FAKE_NIX_STORE:-local}\"},\"experimental-features\":{\"value\":[\"nix-command\",\"flakes\",\"ca-derivations\"]}}"
     ;;
   *"build-trace info --help"*)
     exit 0
@@ -52,7 +52,11 @@ ia_mode = "warn"
 POLICY
     ;;
   *"derivation show"*)
-    echo '{"/nix/store/unresolved-check.drv":{}}'
+    if [ -n "${FAKE_NIX_DERIVATION_JSON:-}" ]; then
+      printf '%s\n' "$FAKE_NIX_DERIVATION_JSON"
+    else
+      echo '{"/nix/store/unresolved-check.drv":{"system":"x86_64-linux","outputs":{"out":{"hashAlgo":"sha256","method":"nar"}},"env":{"policyVersion":"poc-v1"}}}'
+    fi
     ;;
   *"build-trace info"*)
     mode="${FAKE_NIX_TRACE_MODE:-found}"
@@ -218,6 +222,27 @@ fn read_only_commands_never_request_a_target_build_or_download() {
         assert!(
             !calls.lines().any(|line| line.contains(forbidden)),
             "read-only command invoked `{forbidden}`:\n{calls}"
+        );
+    }
+    for call in calls
+        .lines()
+        .filter(|line| line.contains("derivation show") || line.contains("build-trace info"))
+    {
+        assert!(
+            call.contains("--option allow-import-from-derivation false"),
+            "IFD enabled: {call}"
+        );
+        assert!(
+            call.contains("--no-update-lock-file"),
+            "lock update enabled: {call}"
+        );
+        assert!(
+            call.contains("--no-write-lock-file"),
+            "lock write enabled: {call}"
+        );
+        assert!(
+            call.contains("--store local"),
+            "effective store was not pinned: {call}"
         );
     }
 }
@@ -430,4 +455,103 @@ fn mutable_policy_reference_is_rejected() {
     );
     assert_eq!(output.status.code(), Some(30));
     assert!(String::from_utf8_lossy(&output.stderr).contains("same full commit"));
+}
+
+#[test]
+fn inherited_and_configured_remote_stores_fail_closed() {
+    let (directory, nix, config) = fixture();
+    for variable in ["NIX_REMOTE", "FAKE_NIX_STORE"] {
+        let log = directory.path().join(format!("{variable}.log"));
+        let output = Command::new(env!("CARGO_BIN_EXE_once"))
+            .env("ONCE_NIX_BIN", &nix)
+            .env_remove("ONCE_NIX_STORE")
+            .env_remove("NIX_REMOTE")
+            .env(variable, "https://cache.example.invalid")
+            .env("FAKE_NIX_LOG", &log)
+            .args([
+                "--config",
+                config.to_str().unwrap(),
+                "--json",
+                "check",
+                ".#demo",
+            ])
+            .output()
+            .unwrap();
+        assert_eq!(
+            output.status.code(),
+            Some(20),
+            "{variable}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let calls = fs::read_to_string(log).unwrap();
+        assert!(calls.lines().filter(|line| line.contains("derivation show") || line.contains("build-trace info")).all(|line| line.contains("--store https://cache.example.invalid")));
+    }
+}
+
+#[test]
+fn once_store_overrides_inherited_remote() {
+    let (_directory, nix, config) = fixture();
+    let output = Command::new(env!("CARGO_BIN_EXE_once"))
+        .env("ONCE_NIX_BIN", &nix)
+        .env("ONCE_NIX_STORE", "local")
+        .env("NIX_REMOTE", "https://cache.example.invalid")
+        .args([
+            "--config",
+            config.to_str().unwrap(),
+            "--json",
+            "check",
+            ".#demo",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn ambiguous_derivations_and_outputs_fail_closed() {
+    let (_directory, nix, config) = fixture();
+    for derivation in [
+        r#"{}"#,
+        r#"{"a.drv":{"outputs":{"out":{}}},"b.drv":{"outputs":{"out":{}}}}"#,
+        r#"{"a.drv":{"outputs":{"out":{},"dev":{}}}}"#,
+        r#"{"a.drv":{"outputs":{"out":{}},"inputs":{"drvs":{"b.drv":{"dynamicOutputs":{"out":{}}}}}}}"#,
+    ] {
+        let output = Command::new(env!("CARGO_BIN_EXE_once"))
+            .env("ONCE_NIX_BIN", &nix)
+            .env("FAKE_NIX_DERIVATION_JSON", derivation)
+            .args([
+                "--config",
+                config.to_str().unwrap(),
+                "--json",
+                "check",
+                ".#demo",
+            ])
+            .output()
+            .unwrap();
+        assert_eq!(
+            output.status.code(),
+            Some(30),
+            "{derivation}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+}
+
+#[test]
+fn doctor_checks_all_policy_required_features() {
+    let (_directory, nix, config) = fixture();
+    let source = fs::read_to_string(&config).unwrap().replace(
+        "required_experimental_features = [\"nix-command\", \"flakes\", \"ca-derivations\"]",
+        "required_experimental_features = [\"nix-command\", \"flakes\", \"ca-derivations\", \"dynamic-derivations\"]",
+    );
+    fs::write(&config, source).unwrap();
+    let output = once(&nix, &config, &["--json", "doctor"]);
+    assert_eq!(output.status.code(), Some(20));
+    let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(json["suitable"], false);
+    assert_eq!(json["backend"]["store"], "local");
 }

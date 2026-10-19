@@ -34,6 +34,9 @@ pub struct NixConfig {
 pub struct TrustConfig {
     pub required_signatures: usize,
     pub accepted_key_names: Vec<String>,
+    /// Full Nix name:base64 Ed25519 public keys for portable trace verification.
+    #[serde(default)]
+    pub public_keys: Vec<String>,
     pub ia_mode: IaMode,
 }
 
@@ -92,6 +95,7 @@ impl Config {
                 "trust.accepted_key_names must not be empty".into(),
             ));
         }
+        crate::verification::public_keys(&self.trust).map_err(OnceError::InvalidConfig)?;
         Ok(())
     }
 }

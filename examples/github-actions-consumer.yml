@@ -1,0 +1,41 @@
+# Copy to .github/workflows/check.yml; use the same Once and policy pins as producer.
+name: Once consumer
+on:
+  pull_request:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: DeterminateSystems/determinate-nix-action@96c5ee93a9dddf2830d31e1da6ec719077336c28 # v3.23.3
+        with:
+          extra-conf: |
+            experimental-features = nix-command flakes ca-derivations
+      - name: Find an accepted realization
+        id: once
+        uses: closure-labs/once@REPLACE_WITH_ONCE_COMMIT
+        with:
+          command: check
+          installable: .#checks.x86_64-linux.integration
+          policy-flake: github:YOUR_ORG/once-policy/REPLACE_WITH_POLICY_COMMIT
+          policy-revision: REPLACE_WITH_POLICY_COMMIT
+          install-nix: "false"
+          producer-workflow: once-producer.yml
+          producer-branch: main
+          fail-on-nonzero: "false"
+      - name: Fail on invalid evidence or configuration
+        if: steps.once.outputs.cache-hit != 'true' && (steps.once.outputs.decision != 'MISS' || steps.once.outputs.exit-code != '10')
+        env:
+          ONCE_DECISION: ${{ steps.once.outputs.decision }}
+          ONCE_EXIT_CODE: ${{ steps.once.outputs.exit-code }}
+        run: |
+          printf 'Once rejected evidence: %s (exit %s)\n' "$ONCE_DECISION" "$ONCE_EXIT_CODE" >&2
+          exit 1
+      - name: Build a genuine miss
+        if: steps.once.outputs.decision == 'MISS' && steps.once.outputs.exit-code == '10'
+        run: nix build .#checks.x86_64-linux.integration --no-link --no-write-lock-file

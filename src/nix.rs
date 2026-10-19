@@ -1,4 +1,11 @@
-use std::{collections::BTreeMap, ffi::OsStr, process::Command};
+use std::{
+    cell::OnceCell,
+    collections::BTreeMap,
+    ffi::OsStr,
+    fs,
+    path::Path,
+    process::{Command, Stdio},
+};
 
 use semver::Version;
 use serde::Deserialize;
@@ -20,9 +27,25 @@ struct CommandOutput {
     stderr: String,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct Evaluation {
     pub unresolved_drv: Option<String>,
+    pub output_name: String,
+    pub system: String,
+    pub policy_version: Option<String>,
+    pub content_addressed: bool,
+}
+
+impl Default for Evaluation {
+    fn default() -> Self {
+        Self {
+            unresolved_drv: None,
+            output_name: "out".into(),
+            system: String::new(),
+            policy_version: None,
+            content_addressed: false,
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -40,6 +63,7 @@ pub enum TraceQuery {
 pub enum TrustEvidence {
     LocalStore,
     UnverifiedRemote,
+    VerifiedNative,
 }
 
 #[derive(Clone, Debug)]
@@ -49,13 +73,17 @@ pub struct DoctorState {
     pub build_trace_command: bool,
     pub ca_derivations_configured: bool,
     pub required_features: Vec<String>,
+    pub required_features_configured: bool,
     pub backend: BackendDescription,
 }
 
 impl DoctorState {
     #[must_use]
     pub fn suitable(&self) -> bool {
-        self.version >= self.minimum && self.build_trace_command && self.ca_derivations_configured
+        self.version >= self.minimum
+            && self.build_trace_command
+            && self.ca_derivations_configured
+            && self.required_features_configured
     }
 }
 
@@ -64,6 +92,7 @@ pub struct NixAdapter {
     backend: EnvironmentBackend,
     store: Option<String>,
     eval_store: Option<String>,
+    resolved_store: OnceCell<String>,
 }
 
 impl Default for NixAdapter {
@@ -71,8 +100,11 @@ impl Default for NixAdapter {
         Self {
             executable: std::env::var("ONCE_NIX_BIN").unwrap_or_else(|_| "nix".into()),
             backend: EnvironmentBackend,
-            store: std::env::var("ONCE_NIX_STORE").ok(),
+            store: std::env::var("ONCE_NIX_STORE")
+                .or_else(|_| std::env::var("NIX_REMOTE"))
+                .ok(),
             eval_store: std::env::var("ONCE_NIX_EVAL_STORE").ok(),
+            resolved_store: OnceCell::new(),
         }
     }
 }
@@ -96,7 +128,15 @@ impl NixAdapter {
             build_trace_command: help.success,
             ca_derivations_configured: configured.iter().any(|f| f == "ca-derivations"),
             required_features: config.nix.required_experimental_features.clone(),
-            backend: self.backend.describe(),
+            required_features_configured: config
+                .nix
+                .required_experimental_features
+                .iter()
+                .all(|feature| configured.contains(feature)),
+            backend: BackendDescription {
+                store: Some(self.effective_store()?),
+                ..self.backend.describe()
+            },
         })
     }
 
@@ -148,8 +188,68 @@ impl NixAdapter {
         Ok(policy.stdout)
     }
 
+    /// Evaluate one static derivation and select one explicit output, without IFD.
     pub fn evaluate(&self, installable: &str) -> Result<Evaluation> {
+        let value = self.derivations(installable, false)?;
+        let derivations = derivation_map(&value)?;
+        if derivations.len() != 1 {
+            return Err(OnceError::InvalidConfig(
+                "Once requires exactly one target derivation".into(),
+            ));
+        }
+        let (path, derivation) = derivations.iter().next().expect("one derivation");
+        validate_static_derivation(derivation)?;
+        let outputs = derivation
+            .get("outputs")
+            .and_then(serde_json::Value::as_object)
+            .ok_or_else(|| OnceError::InvalidConfig("target derivation has no outputs".into()))?;
+        let selected = installable.rsplit_once('^').map(|(_, output)| output);
+        let output_name = match selected {
+            Some(output)
+                if output != "*" && !output.contains(',') && outputs.contains_key(output) =>
+            {
+                output.to_owned()
+            }
+            Some(_) => {
+                return Err(OnceError::InvalidConfig(
+                    "select exactly one existing target output".into(),
+                ));
+            }
+            None if outputs.len() == 1 => outputs.keys().next().expect("one output").clone(),
+            None => {
+                return Err(OnceError::InvalidConfig(
+                    "multi-output targets require an explicit ^output selection".into(),
+                ));
+            }
+        };
+        let output = &outputs[&output_name];
+        Ok(Evaluation {
+            unresolved_drv: Some(crate::trace::normalize_store_path(path)),
+            output_name,
+            system: derivation
+                .get("system")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or_default()
+                .to_owned(),
+            policy_version: derivation
+                .pointer("/env/policyVersion")
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_owned),
+            content_addressed: is_floating_ca(output),
+        })
+    }
+
+    /// Expose the static graph to bundle export without realizing any outputs.
+    pub fn recursive_derivations(&self, installable: &str) -> Result<serde_json::Value> {
+        self.derivations(installable, true)
+    }
+
+    fn derivations(&self, installable: &str, recursive: bool) -> Result<serde_json::Value> {
         let mut arguments = vec!["derivation", "show", installable];
+        if recursive {
+            arguments.push("--recursive");
+        }
+        arguments.extend(read_only_arguments());
         if let Some(eval_store) = &self.eval_store {
             arguments.extend(["--eval-store", eval_store]);
         }
@@ -160,43 +260,233 @@ impl NixAdapter {
         let value: serde_json::Value =
             serde_json::from_str(&output.stdout).map_err(|source| OnceError::NixJson {
                 source,
-                output: output.stdout.clone(),
+                output: output.stdout,
             })?;
-        let unresolved_drv = value
-            .get("derivations")
-            .and_then(serde_json::Value::as_object)
-            .and_then(|object| object.keys().next())
-            .map(|path| crate::trace::normalize_store_path(path))
-            .or_else(|| {
-                value
-                    .as_object()
-                    .and_then(|object| object.keys().find(|key| key.ends_with(".drv")))
-                    .cloned()
+        for derivation in derivation_map(&value)?.values() {
+            validate_static_derivation(derivation)?;
+        }
+        Ok(value)
+    }
+
+    /// Query only a cache whose native claims the caller has already verified.
+    /// The returned evidence remains remote; callers must retain that verification evidence.
+    pub fn trace_cached(&self, installable: &str, cache_path: &Path) -> Result<TraceQuery> {
+        let eval_store = self.eval_store.clone().unwrap_or(self.effective_store()?);
+        if !is_local_store(&eval_store) {
+            return Err(OnceError::InvalidConfig(
+                "verified-cache resolution requires an explicit local evaluation store".into(),
+            ));
+        }
+        let evaluation = self.evaluate(installable)?;
+        let unresolved = evaluation.unresolved_drv.as_deref().ok_or_else(|| {
+            OnceError::InvalidConfig("target evaluation did not identify a derivation".into())
+        })?;
+        let target = format!("{unresolved}^{}", evaluation.output_name);
+        let cache = cache_path
+            .canonicalize()
+            .map_err(|source| OnceError::ReadConfig {
+                path: cache_path.into(),
+                source,
+            })?;
+        let cache_store = format!("file://{}", cache.display());
+        // Native build-trace info reads derivations from its operational store,
+        // not the evaluation store, during its second resolution pass. Seed only
+        // the freshly evaluated .drv objects; never copy their source/output closure.
+        // Native cache upload enforces reference availability, so transport these
+        // evaluator-authored objects with native path-info and dump-path instead.
+        let graph = self.recursive_derivations(installable)?;
+        self.stage_derivations(&eval_store, &cache, &graph)?;
+        let mut arguments = vec![
+            "store",
+            "build-trace",
+            "info",
+            &target,
+            "--json",
+            "--eval-store",
+            &eval_store,
+            "--option",
+            "substituters",
+            "",
+            "--option",
+            "extra-substituters",
+            "",
+            "--option",
+            "accept-flake-config",
+            "false",
+        ];
+        arguments.extend(read_only_arguments());
+        let output = self.run_nix_at(&cache_store, arguments)?;
+        let query = self.parse_trace_output(output, TrustEvidence::UnverifiedRemote)?;
+        if let TraceQuery::Found {
+            mut records,
+            evidence,
+        } = query
+        {
+            // Nix emits the requested root output as an opaquePath, and emits
+            // queried dependency claims alongside its root claim. Match that
+            // native root path explicitly rather than relying on record ordering.
+            let target_paths: std::collections::BTreeSet<_> = records
+                .opaque_paths
+                .iter()
+                .map(|path| crate::trace::normalize_store_path(path))
+                .collect();
+            if target_paths.len() != 1 {
+                return Ok(TraceQuery::Failed(
+                    "cached query did not identify one target output path".into(),
+                ));
+            }
+            records.entries.retain(|entry| {
+                entry.key.output_name == evaluation.output_name
+                    && target_paths
+                        .contains(&crate::trace::normalize_store_path(&entry.value.out_path))
             });
-        Ok(Evaluation { unresolved_drv })
+            if records.entries.is_empty() {
+                return Ok(TraceQuery::Miss(
+                    "cache has no trace for the selected target output".into(),
+                ));
+            }
+            let identities: std::collections::BTreeSet<_> = records
+                .entries
+                .iter()
+                .map(|entry| &entry.key.drv_path)
+                .collect();
+            if identities.len() != 1 {
+                return Ok(TraceQuery::Failed(
+                    "cached query returned ambiguous target identities".into(),
+                ));
+            }
+            Ok(TraceQuery::Found { records, evidence })
+        } else {
+            Ok(query)
+        }
+    }
+
+    fn stage_derivations(
+        &self,
+        eval_store: &str,
+        cache: &Path,
+        graph: &serde_json::Value,
+    ) -> Result<()> {
+        let paths: Vec<String> = derivation_map(graph)?
+            .keys()
+            .map(|path| crate::trace::normalize_store_path(path))
+            .collect();
+        if paths.is_empty() {
+            return Err(OnceError::Bundle(
+                "evaluated derivation graph is empty".into(),
+            ));
+        }
+        let mut infos = serde_json::Map::new();
+        // Bound argv size for large evaluated graphs (without a shell or stdin protocol).
+        for batch in paths.chunks(128) {
+            let mut arguments = vec!["path-info", "--json", "--json-format", "1"];
+            arguments.extend(batch.iter().map(String::as_str));
+            let output = self.run_nix_at(eval_store, arguments)?;
+            if !output.success {
+                return Err(self.failed(output));
+            }
+            let value: serde_json::Value =
+                serde_json::from_str(&output.stdout).map_err(|source| OnceError::NixJson {
+                    source,
+                    output: output.stdout,
+                })?;
+            let map = value
+                .as_object()
+                .ok_or_else(|| OnceError::Bundle("invalid derivation path metadata".into()))?;
+            infos.extend(map.clone());
+        }
+        fs::create_dir_all(cache.join("nar"))
+            .map_err(|error| OnceError::Bundle(error.to_string()))?;
+        for path in &paths {
+            let info = infos.get(path).ok_or_else(|| {
+                OnceError::Bundle(format!("missing evaluated derivation metadata: {path}"))
+            })?;
+            let nar_hash = info
+                .get("narHash")
+                .and_then(serde_json::Value::as_str)
+                .ok_or_else(|| OnceError::Bundle("missing derivation NAR hash".into()))?;
+            let nar_size = info
+                .get("narSize")
+                .and_then(serde_json::Value::as_u64)
+                .ok_or_else(|| OnceError::Bundle("missing derivation NAR size".into()))?;
+            let basename = crate::verification::basename(path).map_err(OnceError::Bundle)?;
+            let url = format!("nar/{}.nar", &basename[..32]);
+            let file = fs::File::create(cache.join(&url))
+                .map_err(|error| OnceError::Bundle(error.to_string()))?;
+            let mut command = self.nix_command_at(eval_store);
+            command.args(["store", "dump-path", path]);
+            command.stdout(Stdio::from(file));
+            let dumped = self.run(command)?;
+            if !dumped.success {
+                return Err(self.failed(dumped));
+            }
+            if fs::metadata(cache.join(&url))
+                .map_err(|error| OnceError::Bundle(error.to_string()))?
+                .len()
+                != nar_size
+            {
+                return Err(OnceError::Bundle(
+                    "evaluated derivation NAR size changed during staging".into(),
+                ));
+            }
+            let references = info
+                .get("references")
+                .and_then(serde_json::Value::as_array)
+                .ok_or_else(|| OnceError::Bundle("missing derivation references".into()))?
+                .iter()
+                .map(|value| {
+                    let path = value
+                        .as_str()
+                        .ok_or_else(|| OnceError::Bundle("invalid derivation reference".into()))?;
+                    crate::verification::basename(path)
+                        .map(str::to_owned)
+                        .map_err(OnceError::Bundle)
+                })
+                .collect::<Result<Vec<_>>>()?
+                .join(" ");
+            // This is transport metadata for current evaluator-authored .drv
+            // objects, never an alternative derivation resolver or build claim.
+            let mut narinfo = format!(
+                "StorePath: {path}\nURL: {url}\nCompression: none\nFileHash: {nar_hash}\nFileSize: {nar_size}\nNarHash: {nar_hash}\nNarSize: {nar_size}\nReferences: {references}\n"
+            );
+            if let Some(ca) = info.get("ca").and_then(serde_json::Value::as_str) {
+                narinfo.push_str(&format!("CA: {ca}\n"));
+            }
+            fs::write(cache.join(format!("{}.narinfo", &basename[..32])), narinfo)
+                .map_err(|error| OnceError::Bundle(error.to_string()))?;
+        }
+        Ok(())
     }
 
     pub fn trace(&self, installable: &str) -> Result<TraceQuery> {
         let mut arguments = vec!["store", "build-trace", "info", installable, "--json"];
+        arguments.extend(read_only_arguments());
         if let Some(eval_store) = &self.eval_store {
             arguments.extend(["--eval-store", eval_store]);
         }
-        let output = self.run_nix(arguments)?;
+        let store = self.effective_store()?;
+        let output = self.run_nix_at(&store, arguments)?;
+        self.parse_trace_output(
+            output,
+            if is_local_store(&store) {
+                TrustEvidence::LocalStore
+            } else {
+                TrustEvidence::UnverifiedRemote
+            },
+        )
+    }
+
+    fn parse_trace_output(
+        &self,
+        output: CommandOutput,
+        evidence: TrustEvidence,
+    ) -> Result<TraceQuery> {
         if output.success {
             let records =
                 TraceRecords::parse(&output.stdout).map_err(|source| OnceError::NixJson {
                     source,
                     output: output.stdout.clone(),
                 })?;
-            let evidence = if self
-                .store
-                .as_deref()
-                .is_none_or(|store| store.starts_with("local?") || store == "daemon")
-            {
-                TrustEvidence::LocalStore
-            } else {
-                TrustEvidence::UnverifiedRemote
-            };
             return Ok(TraceQuery::Found { records, evidence });
         }
 
@@ -262,14 +552,65 @@ impl NixAdapter {
         I: IntoIterator<Item = S>,
         S: AsRef<OsStr>,
     {
-        let mut command = Command::new(&self.executable);
-        command.arg("--extra-experimental-features").arg(FEATURES);
-        if let Some(store) = &self.store {
-            command.arg("--store").arg(store);
-        }
-        self.backend.configure_nix(&mut command);
+        self.run_nix_at(&self.effective_store()?, arguments)
+    }
+
+    fn run_nix_at<I, S>(&self, store: &str, arguments: I) -> Result<CommandOutput>
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<OsStr>,
+    {
+        let mut command = self.nix_command_at(store);
         command.args(arguments);
         self.run(command)
+    }
+
+    fn nix_command_at(&self, store: &str) -> Command {
+        let mut command = Command::new(&self.executable);
+        command.arg("--extra-experimental-features").arg(FEATURES);
+        command.arg("--store").arg(store);
+        self.backend.configure_nix(&mut command);
+        command
+    }
+
+    fn effective_store(&self) -> Result<String> {
+        if let Some(store) = self.resolved_store.get() {
+            return Ok(store.clone());
+        }
+        let configured = if let Some(store) = &self.store {
+            store.clone()
+        } else {
+            let output = self.run_raw(["config", "show", "--json"])?;
+            if !output.success {
+                return Err(self.failed(output));
+            }
+            let value: serde_json::Value =
+                serde_json::from_str(&output.stdout).map_err(|source| OnceError::NixJson {
+                    source,
+                    output: output.stdout,
+                })?;
+            value
+                .pointer("/store/value")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or("auto")
+                .to_owned()
+        };
+        let store = if configured == "auto" {
+            if Path::new("/nix/var/nix/daemon-socket/socket").exists() {
+                "daemon"
+            } else {
+                "local"
+            }
+            .to_owned()
+        } else if configured.trim().is_empty() {
+            return Err(OnceError::InvalidConfig(
+                "Nix store must not be empty".into(),
+            ));
+        } else {
+            configured
+        };
+        let _ = self.resolved_store.set(store.clone());
+        Ok(store)
     }
 
     fn run_raw<I, S>(&self, arguments: I) -> Result<CommandOutput>
@@ -304,6 +645,82 @@ impl NixAdapter {
             stderr: output.stderr.trim().to_owned(),
         }
     }
+}
+
+fn read_only_arguments() -> [&'static str; 5] {
+    [
+        "--option",
+        "allow-import-from-derivation",
+        "false",
+        "--no-update-lock-file",
+        "--no-write-lock-file",
+    ]
+}
+
+fn is_local_store(store: &str) -> bool {
+    store == "local" || store == "daemon" || store.starts_with("local?")
+}
+
+fn derivation_map(
+    value: &serde_json::Value,
+) -> Result<&serde_json::Map<String, serde_json::Value>> {
+    let map = value
+        .get("derivations")
+        .unwrap_or(value)
+        .as_object()
+        .ok_or_else(|| OnceError::InvalidConfig("Nix did not return a derivation map".into()))?;
+    if map.keys().any(|path| !path.ends_with(".drv")) {
+        return Err(OnceError::InvalidConfig(
+            "invalid derivation identity returned by Nix".into(),
+        ));
+    }
+    Ok(map)
+}
+
+fn is_floating_ca(output: &serde_json::Value) -> bool {
+    output.get("hashAlgo").is_some() && output.get("hash").is_none() && output.get("path").is_none()
+}
+
+fn validate_static_derivation(derivation: &serde_json::Value) -> Result<()> {
+    if derivation
+        .pointer("/env/__impure")
+        .and_then(serde_json::Value::as_str)
+        == Some("1")
+    {
+        return Err(OnceError::InvalidConfig(
+            "impure derivations are unsupported".into(),
+        ));
+    }
+    // Dynamic derivations add nested dynamicDrvDeps; only static input-output dependencies are supported.
+    if derivation
+        .get("dynamicDrvDeps")
+        .is_some_and(|value| value.as_object().is_none_or(|map| !map.is_empty()))
+    {
+        return Err(OnceError::InvalidConfig(
+            "dynamic derivations are unsupported".into(),
+        ));
+    }
+    for inputs in [
+        derivation.get("inputDrvs"),
+        derivation.pointer("/inputs/drvs"),
+    ]
+    .into_iter()
+    .flatten()
+    {
+        if let Some(map) = inputs.as_object() {
+            for input in map.values() {
+                if input
+                    .get("dynamicOutputs")
+                    .is_some_and(|value| value.as_object().is_none_or(|map| !map.is_empty()))
+                {
+                    return Err(OnceError::InvalidConfig(
+                        "dynamic derivation outputs are unsupported".into(),
+                    ));
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 pub fn parse_nix_version(value: &str) -> Result<Version> {

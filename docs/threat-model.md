@@ -2,14 +2,18 @@
 
 ## Trusted claims
 
-A build-trace signature is a claim by a configured builder. Once delegates
-cryptographic validation to Nix and then applies its narrower accepted-key
-policy. A signer name in JSON is never sufficient by itself.
+A build-trace signature is a claim by a configured builder. Legacy local
+policies rely on Nix’s trusted local store and then apply a narrower accepted-key
+policy. A signer name in JSON is never sufficient by itself. Portable bundles in v0.5
+are verified directly by Once using full Ed25519 public keys from protected
+policy. Verification covers Nix’s exact signed derivation/output mapping before
+the claim enters the temporary cache. This path is restricted to the tested
+Nix 2.35.3 format.
 
 Nix 2.35's remote build-trace inspection command does not perform that
 validation. Remote trace hits consequently fail closed as `UNSUPPORTED` in
 v0.2. Locally registered traces rely on the local store as the trust boundary.
-Current Nix upstream validates realisation signatures inside its private
+The audited Nix 2.36 prerelease validates realisation signatures inside its private
 substitution machinery, but exposes neither a read-only validating CLI nor a
 stable public build-trace C API. Once does not bind to that private ABI or begin
 substitution merely to establish trust; see the
@@ -51,3 +55,27 @@ key compromise is equivalent to a trusted-builder compromise.
 
 Ultimately, independent audit still requires rebuilding. Once is memoized trust,
 not trustless proof of computation.
+
+
+## Portable bundles and GitHub artifacts
+
+The bundle contains native claims, not a trusted store database. Neither its
+artifact name nor unsigned metadata binds it to the current target. The current
+derivation is evaluated independently with IFD disabled and no lock-file
+updates. Nix resolves it using verified claims and the current evaluated
+derivation metadata. Staging this metadata never restores target outputs.
+Missing evidence cannot be replaced by the producer's store database. Unknown
+formats, invalid signatures, and conflicting mappings fail closed.
+
+Bundle transport uses successful push runs of a configured producer workflow
+on a protected branch. Consumer jobs receive read-only permissions and no
+signing credentials. Fork jobs without artifact access use the documented
+ordinary-check fallback. ZIP paths, sizes, and symlinks are checked before
+extraction; only native signature verification authorizes a skip.
+
+`policyVersion` must be embedded in the check derivation and match protected
+policy's `once.policy_version`. Bumping it invalidates computation identity.
+Changing accepted keys changes acceptance immediately; changing the policy
+flake commit alone does not force a rebuild. Artifact retention limits reuse,
+not signature lifetime: an authorized old claim remains valid for the same
+derivation until policy revokes its key or changes computation identity.

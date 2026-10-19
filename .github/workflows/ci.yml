@@ -16,7 +16,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Determinate Nix
-        uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
+        uses: DeterminateSystems/determinate-nix-action@96c5ee93a9dddf2830d31e1da6ec719077336c28 # v3.23.3
         with:
           extra-conf: |
             experimental-features = nix-command flakes ca-derivations
@@ -30,12 +30,12 @@ jobs:
           authToken: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && secrets.CACHIX_AUTH_TOKEN || '' }}
           skipPush: ${{ github.event_name != 'push' || github.ref != 'refs/heads/main' || secrets.CACHIX_AUTH_TOKEN == '' }}
 
-      - name: Require Nix 2.35+
+      - name: Require tested Nix 2.35.3
         shell: bash
         run: |
           set -euo pipefail
           version=$(nix --version | awk '{print $NF}')
-          nix eval --expr "assert builtins.compareVersions \"$version\" \"2.35.0\" >= 0; true"
+          test "$version" = 2.35.3
 
       - name: Format
         run: nix develop -c cargo fmt --all -- --check
@@ -46,7 +46,21 @@ jobs:
       - name: Lint GitHub Actions workflows
         run: |
           nix develop -c actionlint
-          nix develop -c actionlint examples/once-policy/.github/workflows/ci.yml
+          nix develop -c actionlint examples/once-policy/.github/workflows/ci.yml \
+            examples/github-actions-producer.yml examples/github-actions-consumer.yml
+          # Parse and validate the publisher's local composite Action contract.
+          nix develop -c actionlint - <<'WORKFLOW'
+          on: push
+          jobs:
+            contract:
+              runs-on: ubuntu-latest
+              steps:
+                - uses: ./publish
+                  with:
+                    installable: .#checks.x86_64-linux.integration
+                    policy-flake: github:closure-labs/once-policy/5a4234004dc9948a1d45d462f947b10411d91a33
+                    policy-revision: 5a4234004dc9948a1d45d462f947b10411d91a33
+          WORKFLOW
 
       - name: Lint shell scripts
         run: |
@@ -55,8 +69,11 @@ jobs:
             scripts/build-trace-version-matrix.sh \
             scripts/det-artifact.sh \
             scripts/github-action.sh \
+            scripts/github-common.sh \
+            scripts/github-publish.sh \
             tests/det-artifact.sh \
-            tests/github-action.sh
+            tests/github-action.sh \
+            tests/native-bundles.sh
 
       - name: Test
         run: nix develop -c cargo test
@@ -64,10 +81,13 @@ jobs:
       - name: Test GitHub Action wrapper
         run: nix develop -c bash tests/github-action.sh
 
+      - name: Test GitHub artifact transport
+        run: nix develop -c python3 -B tests/github-artifacts.py
+
       - name: Test deterministic artifact tooling
         run: nix develop -c bash tests/det-artifact.sh
 
-      - name: Verify minimum community Nix release
+      - name: Verify legacy local mode on community Nix 2.35.2
         env:
           NIX_CONFIG: extra-experimental-features = nix-command flakes ca-derivations
           NIXPKGS_NIX_REVISION: 2c423e03bbafcff28bfadc6781a4a8257f205cb5
@@ -111,9 +131,9 @@ jobs:
       - name: Check protected policy flake template
         run: nix flake check path:./examples/once-policy --print-build-logs
 
-      - name: Run Once proof of concept
-        # The disposable chroot store needs a mount namespace unavailable on
-        # the hosted VM itself, so run this isolated step in a pinned container.
+      - name: Verify local reuse and native bundles on fresh stores
+        # Pin community Nix 2.35.3; chroot builders need a privileged namespace.
+        # Share the environment and Cargo build across both proofs.
         shell: bash
         run: |
           docker run --privileged --rm \
@@ -122,9 +142,15 @@ jobs:
             --env RUNNER_TEMP=/var \
             --volume "$GITHUB_WORKSPACE:/workspace:ro" \
             --workdir /workspace \
-            nixos/nix@sha256:377d4887aca98f0dfa12971c1ea6d6a625a435d8b610d4c95a436843da6fbfd1 \
+            nixos/nix@sha256:ff480dbb23511aa1c10710aa068ceea5b93fed9bfce5f5379f3a6b07282cbc7b \
             nix --extra-experimental-features 'nix-command flakes ca-derivations' \
-            develop path:/workspace -c ./scripts/demo.sh
+            develop path:/workspace -c bash -c '
+              set -euo pipefail
+              test "$(nix --version)" = "nix (Nix) 2.35.3"
+              cargo build --manifest-path /workspace/Cargo.toml
+              bash scripts/demo.sh
+              bash tests/native-bundles.sh
+            '
 
       - name: Summarize demonstration
         if: always()
@@ -141,4 +167,6 @@ jobs:
             echo '- Relevant source invalidation'
             echo '- Irrelevant documentation stability'
             echo '- Policy-version invalidation'
+            echo '- Verified signed bundles on a fresh consumer store'
+            echo '- Tampering, unrelated-key and revoked-key rejection'
           } >> "$GITHUB_STEP_SUMMARY"

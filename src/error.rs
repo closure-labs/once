@@ -2,6 +2,14 @@ use std::path::PathBuf;
 
 #[derive(Debug, thiserror::Error)]
 pub enum OnceError {
+    #[error("unsupported: {0}")]
+    Unsupported(String),
+    #[error("conflicting build traces: {0}")]
+    Conflict(String),
+    #[error("trace bundle: {0}")]
+    Bundle(String),
+    #[error("trace verification: {0}")]
+    Verification(String),
     #[error("failed to execute {program}: {source}")]
     Command {
         program: String,

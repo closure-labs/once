@@ -1,4 +1,5 @@
 mod backend;
+mod bundle;
 mod cli;
 mod config;
 mod error;
@@ -7,6 +8,7 @@ mod policy;
 mod report;
 mod trace;
 mod types;
+mod verification;
 
 use clap::Parser;
 use cli::Cli;
@@ -23,6 +25,9 @@ fn main() {
         Err(error) => {
             eprintln!("once: {error}");
             match error {
+                error::OnceError::Verification(_) => types::ExitCode::Untrusted as i32,
+                error::OnceError::Unsupported(_) => types::ExitCode::Unsupported as i32,
+                error::OnceError::Conflict(_) => types::ExitCode::Conflict as i32,
                 error::OnceError::ReadConfig { .. }
                 | error::OnceError::ParseConfig { .. }
                 | error::OnceError::InvalidConfig(_)

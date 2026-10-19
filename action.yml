@@ -20,11 +20,35 @@ inputs:
     required: false
     default: "true"
   install-nix:
-    description: Install pinned Determinate Nix before invoking Once.
+    description: Install tested Determinate Nix 3.23.3 before invoking Once.
     required: false
     default: "true"
 
+  trace-bundle:
+    description: Local directory containing a signed portable bundle (check only).
+    required: false
+  producer-workflow:
+    description: Producer workflow filename or numeric ID; find a matching artifact (check only).
+    required: false
+  producer-branch:
+    description: Protected branch whose successful push runs may supply bundles.
+    required: false
+    default: main
+  github-token:
+    description: Read-only token with actions read and contents read for artifact lookup.
+    required: false
+    default: ${{ github.token }}
+
 outputs:
+  cache-hit:
+    description: True only when Once accepted the realization.
+    value: ${{ steps.once.outputs.cache-hit }}
+  decision:
+    description: Once decision; a normal absent artifact produces MISS.
+    value: ${{ steps.once.outputs.decision }}
+  bundle-id:
+    description: Stable artifact name for this derivation, output and policy.
+    value: ${{ steps.once.outputs.bundle-id }}
   result-json:
     description: Versioned JSON emitted by Once, when the CLI produced a result.
     value: ${{ steps.once.outputs.result-json }}
@@ -40,7 +64,7 @@ runs:
   steps:
     - name: Install Determinate Nix
       if: inputs.install-nix == 'true'
-      uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
+      uses: DeterminateSystems/determinate-nix-action@96c5ee93a9dddf2830d31e1da6ec719077336c28 # v3.23.3
       with:
         extra-conf: |
           experimental-features = nix-command flakes ca-derivations
@@ -55,6 +79,10 @@ runs:
         ONCE_ACTION_POLICY_REVISION: ${{ inputs.policy-revision }}
         ONCE_ACTION_FAIL_ON_NONZERO: ${{ inputs.fail-on-nonzero }}
         ONCE_ACTION_INSTALL_NIX: ${{ inputs.install-nix }}
+        ONCE_ACTION_TRACE_BUNDLE: ${{ inputs.trace-bundle }}
+        ONCE_ACTION_PRODUCER_WORKFLOW: ${{ inputs.producer-workflow }}
+        ONCE_ACTION_PRODUCER_BRANCH: ${{ inputs.producer-branch }}
+        ONCE_ACTION_GITHUB_TOKEN: ${{ inputs.github-token }}
       run: bash "$GITHUB_ACTION_PATH/scripts/github-action.sh"
 
     - name: Enforce Once result

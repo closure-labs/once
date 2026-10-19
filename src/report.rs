@@ -94,7 +94,9 @@ struct ResolveReport<'a> {
 }
 
 fn resolve(report: &ResultEnvelope, query: &TraceQuery, json: bool) -> Result<()> {
-    let (status, resolved_derivation, output_name) = resolution(query);
+    let (status, _, _) = resolution(query);
+    let resolved_derivation = report.derivation.resolved.clone();
+    let output_name = report.derivation.output_name.clone();
     let view = ResolveReport {
         schema: "dev.closurelabs.once/resolve/v1",
         installable: &report.installable,
@@ -132,7 +134,7 @@ fn resolution(query: &TraceQuery) -> (&'static str, Option<String>, Option<Strin
         TraceQuery::Found { records, .. } => {
             records
                 .entries
-                .last()
+                .first()
                 .map_or(("unknown", None, None), |entry| {
                     (
                         "resolved",
@@ -228,6 +230,7 @@ fn trace_details(query: &TraceQuery) -> (Option<&'static str>, Vec<TraceEntryRep
     let evidence = Some(match evidence {
         TrustEvidence::LocalStore => "local-store",
         TrustEvidence::UnverifiedRemote => "unverified-remote",
+        TrustEvidence::VerifiedNative => "native-ed25519",
     });
     let entries = records
         .entries
@@ -319,7 +322,9 @@ fn trust(report: &ResultEnvelope, config: &Config, json: bool) -> Result<()> {
 }
 
 fn human_explain(report: &ResultEnvelope, query: &TraceQuery) {
-    let (resolution_status, resolved, output_name) = resolution(query);
+    let (resolution_status, _, _) = resolution(query);
+    let resolved = report.derivation.resolved.clone();
+    let output_name = report.derivation.output_name.clone();
     println!("Closure Labs — Once explain\n");
     println!("Installable:\n  {}\n", report.installable);
     println!(
@@ -385,6 +390,8 @@ pub fn doctor(state: &DoctorState, json: bool) -> Result<()> {
             "buildTraceCommand": state.build_trace_command,
             "caDerivationsConfigured": state.ca_derivations_configured,
             "requiredFeatures": state.required_features,
+            "requiredFeaturesConfigured": state.required_features_configured,
+            "nativeTraceVerification": state.version == semver::Version::new(2, 35, 3),
             "backend": {
                 "kind": state.backend.kind,
                 "store": state.backend.store,
@@ -406,6 +413,14 @@ pub fn doctor(state: &DoctorState, json: bool) -> Result<()> {
             yes_no(state.ca_derivations_configured)
         );
         println!("Backend:                  {}", state.backend.kind);
+        println!(
+            "Required features:        {}",
+            yes_no(state.required_features_configured)
+        );
+        println!(
+            "Native trace verification: {}",
+            yes_no(state.version == semver::Version::new(2, 35, 3))
+        );
         if let Some(store) = &state.backend.store {
             println!("Store:                    {store}");
         }
